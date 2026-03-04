@@ -1,19 +1,40 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import List
+from typing import List, Dict, Protocol
 
 from app.models import NewsItem
+from app.news_parser.sources.habr import HabrRssParser
 
 
-def collect_site_news_stub() -> List[NewsItem]:
-    now = datetime.now(timezone.utc)
-    return [
-        NewsItem(
-            title="Stub news: FastAPI project started",
-            url="https://example.com/news/1",
-            summary="Базовый FastAPI сервис поднят и готов парсить источник.",
-            source="stub",
-            published_at=now,
-        )
-    ]
+class SiteParser(Protocol):
+    async def parse(self, limit: int = 20) -> List[NewsItem]: ...
+
+
+_PARSERS: Dict[str, object] = {
+    "habr": HabrRssParser(),
+}
+
+
+def available_sites() -> List[str]:
+    return sorted(_PARSERS.keys())
+
+
+async def collect_from_sites(sites: List[str], limit_per_site: int = 20) -> List[NewsItem]:
+    """
+    MVP: собираем новости из указанных site keys.
+    Если один источник упал - пропускаем его.
+    """
+    result: List[NewsItem] = []
+
+    for key in sites:
+        parser = _PARSERS.get(key)
+        if parser is None:
+            continue
+
+        try:
+            items = await parser.parse(limit=limit_per_site)  # type: ignore[attr-defined]
+            result.extend(items)
+        except Exception:
+            continue
+
+    return result

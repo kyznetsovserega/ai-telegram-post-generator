@@ -1,3 +1,6 @@
 python-dotenv
 fastapi[standard]
 uvicorn[standard]
+httpx==0.27.0
+feedparser==6.0.11
+beautifulsoup4==4.12.3

@@ -7,7 +7,7 @@ from typing import Iterable
 from app.models import NewsItem
 
 
-class JsonNewsStorage:
+class JsonlNewsStorage:
     def __init__(self, path: Path) -> None:
         self.path = path
         self.path.parent.mkdir(parents=True, exist_ok=True)

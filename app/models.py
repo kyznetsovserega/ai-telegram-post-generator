@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from email.policy import default
 from typing import Optional
 from uuid import UUID, uuid4
 

@@ -25,7 +25,7 @@ class CollectSitesResponse(BaseModel):
 
 @router.post("/collect/sites", response_model=CollectSitesResponse)
 async def collect_sites(payload: CollectSitesRequest) -> CollectSitesResponse:
-    storage = JsonlNewsStorage(path=Path("date/news.jsonl"))
+    storage = JsonlNewsStorage(path=Path("data/news.jsonl"))
 
     supported = set(available_sites())
     sites = [s for s in payload.sites if s in supported]

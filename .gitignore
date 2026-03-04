@@ -6,3 +6,8 @@ venv/
 .vscode/
 
 data/
+
+# Celery Beat schedule (local file)
+celerybeat-schedule
+celerybeat-schedule-shm
+celerybeat-schedule-wal

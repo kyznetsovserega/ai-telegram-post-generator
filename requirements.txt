@@ -1,4 +1,4 @@
-python-dotenv
+python-dotenv>=1.0.1
 fastapi[standard]
 uvicorn[standard]
 httpx==0.27.0
@@ -7,3 +7,5 @@ beautifulsoup4==4.12.3
 celery>=5.3
 redis>=5.0
 requests>=2.31
+openai>=2.26.0
+google-genai>=1.30.0

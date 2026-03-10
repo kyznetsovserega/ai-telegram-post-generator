@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import List
@@ -24,9 +25,24 @@ def _to_datetime(entry: dict) -> datetime:
     tm = entry.get("published_parsed") or entry.get("updated_parsed")
     if tm:
         # tm — time.struct_time
-        return datetime(tm.tm_year, tm.tm_mon, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, tzinfo=timezone.utc)
+        return datetime(
+            tm.tm_year,
+            tm.tm_mon,
+            tm.tm_mday,
+            tm.tm_hour,
+            tm.tm_min,
+            tm.tm_sec,
+            tzinfo=timezone.utc,
+        )
     return datetime.now(tz=timezone.utc)
 
+def _build_news_id(title: str, url: str | None, published_at: datetime) -> str:
+    """
+    Создание стабильного идентификатора новостей
+    для дедупликации и хранения.
+    """
+    base = url or f"{title}|{published_at.isoformat()}"
+    return hashlib.sha256(base.encode("utf-8")).hexdigest()
 
 @dataclass(frozen=True)
 class HabrRssParser:
@@ -48,6 +64,7 @@ class HabrRssParser:
         feed = feedparser.parse(xml)
 
         items: List[NewsItem] = []
+
         for entry in (feed.entries or [])[:limit]:
             title = (entry.get("title") or "").strip()
             url = (entry.get("link") or "").strip()
@@ -59,9 +76,11 @@ class HabrRssParser:
                 continue
 
             published_at = _to_datetime(entry)
+            news_id = _build_news_id(title=title, url=url or None, published_at=published_at)
 
             items.append(
                 NewsItem(
+                    id=news_id,
                     title=title,
                     url=url or None,
                     summary=summary,

@@ -15,7 +15,7 @@ from app.api.schemas import (
     GenerateResponse,
 )
 from app.news_parser.sites import available_sites, collect_from_sites
-from app.storage.news_storage import JsonlNewsStorage
+from app.storage.news import JsonlNewsStorage
 
 router = APIRouter()
 

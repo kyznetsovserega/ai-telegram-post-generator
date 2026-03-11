@@ -45,8 +45,17 @@ class JsonlPostStorage:
         return None
 
     def get_by_news_id(self, news_id: str) -> Optional[PostItem]:
-        """Return the first post generated from a given news item."""
+        """ Возвращает первое сообщение, созданное из данной новости. """
         for item in self.list_all():
             if item.news_id == news_id:
+                return item
+        return None
+
+    def get_by_generated_text(self,text:str) -> Optional[PostItem]:
+        """ Вернуть сообщение с идентичным сгенерированным текстом. """
+        normalized=text.strip()
+
+        for item in self.list_all():
+            if item.generated_text.strip() == normalized:
                 return item
         return None

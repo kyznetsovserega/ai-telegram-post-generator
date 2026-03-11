@@ -124,6 +124,22 @@ async def generate_post_from_news(payload: GenerateFromNewsRequest, ) -> Generat
         client = build_text_generation_client()
         generator = PostGenerator(client=client)
         generated_post = await generator.generate_from_news(news_item)
+
+        # Проверяем дубликат по сгенерированному тексту
+        existing_text_post = post_storage.get_by_generated_text(generated_post.text)
+
+        if existing_text_post is not None:
+            return GenerateFromNewsResponse(
+                id=existing_text_post.id,
+                news_id=existing_text_post.news_id,
+                generated_text=existing_text_post.generated_text,
+                status=existing_text_post.status,
+                created_at=existing_text_post.created_at,
+                published_at=existing_text_post.published_at,
+                source=existing_text_post.source,
+                provider=existing_text_post.provider,
+            )
+
     except AiRateLimitError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except AiTemporaryUnavailableError as exc:

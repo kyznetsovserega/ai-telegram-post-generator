@@ -5,9 +5,14 @@ from pathlib import Path
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, status
-from openai import APIConnectionError, APIStatusError, APITimeoutError, RateLimitError
 
 from app import config
+from app.ai.errors import (
+    AiGenerationError,
+    AiProviderResponseError,
+    AiRateLimitError,
+    AiTemporaryUnavailableError,
+)
 from app.ai.factory import build_text_generation_client
 from app.ai.generator import PostGenerator
 from app.api.schemas import (
@@ -57,22 +62,15 @@ async def generate_post(payload: GenerateRequest) -> GenerateResponse:
         client = build_text_generation_client()
         generator = PostGenerator(client=client)
         post = await generator.generate_from_text(payload.text)
-    except RateLimitError as exc:
-        raise HTTPException(
-            status_code=503,
-            detail="OpenAI quota/rate limit error. Check billing, project budget, and API limits.",
-        ) from exc
-    except (APITimeoutError, APIConnectionError) as exc:
-        raise HTTPException(
-            status_code=502,
-            detail="OpenAI is temporarily unavailable",
-        ) from exc
-    except APIStatusError as exc:
-        raise HTTPException(
-            status_code=502,
-            detail=f"OpenAI API returned status error: {exc.status_code}",
-        ) from exc
+    except AiRateLimitError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except AiTemporaryUnavailableError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except AiProviderResponseError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
     except ValueError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except AiGenerationError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(
@@ -88,9 +86,7 @@ async def generate_post(payload: GenerateRequest) -> GenerateResponse:
     response_model=GenerateFromNewsResponse,
     status_code=status.HTTP_201_CREATED,
 )
-async def generate_post_from_news(
-        payload: GenerateFromNewsRequest,
-) -> GenerateFromNewsResponse:
+async def generate_post_from_news(payload: GenerateFromNewsRequest, ) -> GenerateFromNewsResponse:
     provider = config.LLM_PROVIDER.lower()
 
     if provider == "openai" and not config.OPENAI_API_KEY:
@@ -128,22 +124,15 @@ async def generate_post_from_news(
         client = build_text_generation_client()
         generator = PostGenerator(client=client)
         generated_post = await generator.generate_from_news(news_item)
-    except RateLimitError as exc:
-        raise HTTPException(
-            status_code=503,
-            detail="OpenAI quota/rate limit error. Check billing, project budget, and API limits.",
-        ) from exc
-    except (APITimeoutError, APIConnectionError) as exc:
-        raise HTTPException(
-            status_code=502,
-            detail="OpenAI is temporarily unavailable",
-        ) from exc
-    except APIStatusError as exc:
-        raise HTTPException(
-            status_code=502,
-            detail=f"OpenAI API returned status error: {exc.status_code}",
-        ) from exc
+    except AiRateLimitError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except AiTemporaryUnavailableError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except AiProviderResponseError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
     except ValueError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except AiGenerationError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(

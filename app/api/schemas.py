@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from dataclasses import field
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Any, Self
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+from unicodedata import normalize
 
 
 # --- Collect ---
@@ -25,6 +27,14 @@ class GenerateRequest(BaseModel):
     """ Ручной ввод текста и генерация поста. """
     text: str = Field(min_length=1, max_length=500)
 
+    @field_validator("text")
+    @classmethod
+    def validate_text(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("text must not be empty")
+        return normalized
+
 
 class GenerateResponse(BaseModel):
     generated_text: str
@@ -32,6 +42,14 @@ class GenerateResponse(BaseModel):
 
 class GenerateFromNewsRequest(BaseModel):
     news_id: str = Field(min_length=1)
+
+    @field_validator("news_id")
+    @classmethod
+    def validate_news_id(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("news_id must not be empty")
+        return normalized
 
 
 class GenerateFromNewsResponse(BaseModel):

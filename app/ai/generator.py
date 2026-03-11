@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from locale import normalize
+
+from sentry_sdk.ai.utils import source_role
 
 from app.ai.base import TextGenerationClient
 from app.models import NewsItem
@@ -59,21 +62,44 @@ class PostGenerator:
         return await self.generate_from_text(input_text)
 
     @staticmethod
+    def _normalize_input_news(input_text: str) -> str:
+        normalized = input_text.strip()
+
+        if not normalized:
+            raise ValueError("Input text must not be empty")
+
+        return normalized
+
+    @staticmethod
     def _build_news_input(news_item: NewsItem) -> str:
-        parts: list[str] = [
-            f"Заголовок:{news_item.title}",
-            f"Источник:{news_item.source}",
-        ]
+        parts: list[str] = []
 
-        if news_item.summary:
-            parts.append(f"Краткое описание: {news_item.summary}")
+        title = news_item.title.strip()
+        source = news_item.source.strip()
+        summary = (news_item.summary or "").strip()
+        raw_text = (news_item.raw_text or "").strip()
+        url = (news_item.url or "").strip()
 
-        if news_item.raw_text:
-            parts.append(f"Текст: {news_item.raw_text}")
+        if title:
+            parts.append(f"Краткое описание: {title}")
 
-        if news_item.url:
-            parts.append(f"Ссылка: {news_item.url}")
+        if source:
+            parts.append(f"Текст: {source}")
+
+        if summary:
+            parts.append(f"Ссылка: {summary}")
+
+        if raw_text:
+            parts.append(f"Ссылка: {raw_text}")
+
+        if url:
+            parts.append(f"Ссылка: {url}")
 
         parts.append(f"Дата публикации: {news_item.published_at.isoformat()}")
+
+        has_meaningful_content = any([title, summary, raw_text])
+
+        if not has_meaningful_content:
+            raise ValueError("News item does not contain enough text for generation")
 
         return "\n".join(parts)

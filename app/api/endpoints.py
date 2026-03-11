@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
+from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, status
 from openai import APIConnectionError, APIStatusError, APITimeoutError, RateLimitError
 
 from app import config
@@ -11,11 +13,15 @@ from app.ai.generator import PostGenerator
 from app.api.schemas import (
     CollectSitesRequest,
     CollectSitesResponse,
+    GenerateFromNewsRequest,
+    GenerateFromNewsResponse,
     GenerateRequest,
     GenerateResponse,
 )
+from app.models import PostItem
 from app.news_parser.sites import available_sites, collect_from_sites
 from app.storage.news import JsonlNewsStorage
+from app.storage.posts import JsonlPostStorage
 
 router = APIRouter()
 
@@ -28,7 +34,7 @@ async def collect_sites(payload: CollectSitesRequest) -> CollectSitesResponse:
     sites = [s for s in payload.sites if s in supported]
 
     items = await collect_from_sites(sites=sites, limit_per_site=payload.limit_per_site)
-    saved = storage.append_many(items)
+    saved = storage.save_many(items)
 
     return CollectSitesResponse(
         requested_sites=sites,
@@ -75,3 +81,80 @@ async def generate_post(payload: GenerateRequest) -> GenerateResponse:
         ) from exc
 
     return GenerateResponse(generated_text=post.text)
+
+
+@router.post(
+    "/generate/from-news",
+    response_model=GenerateFromNewsResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def generate_post_from_news(
+        payload: GenerateFromNewsRequest,
+) -> GenerateFromNewsResponse:
+    provider = config.LLM_PROVIDER.lower()
+
+    if provider == "openai" and not config.OPENAI_API_KEY:
+        raise HTTPException(status_code=500, detail="OPENAI_API_KEY is not configured")
+
+    if provider == "gemini" and not config.GEMINI_API_KEY:
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY is not configured")
+
+    news_storage = JsonlNewsStorage(path=Path("data/news.jsonl"))
+    post_storage = JsonlPostStorage(Path("data/posts.jsonl"))
+
+    news_item = news_storage.get_by_id(payload.news_id)
+    if news_item is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"News item with id='{payload.news_id}' not found",
+        )
+    try:
+        client = build_text_generation_client()
+        generator = PostGenerator(client=client)
+        generated_post = await generator.generate_from_news(news_item)
+    except RateLimitError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="OpenAI quota/rate limit error. Check billing, project budget, and API limits.",
+        ) from exc
+    except (APITimeoutError, APIConnectionError) as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="OpenAI is temporarily unavailable",
+        ) from exc
+    except APIStatusError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"OpenAI API returned status error: {exc.status_code}",
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"LLM integration error: {type(exc).__name__}: {exc}",
+        ) from exc
+
+    post_item = PostItem(
+        id=str(uuid4()),
+        news_id=news_item.id,
+        generated_text=generated_post.text,
+        status="generated",
+        created_at=datetime.now(timezone.utc),
+        published_at=None,
+        source=news_item.source,
+        provider=provider,
+    )
+
+    post_storage.save(post_item)
+
+    return GenerateFromNewsResponse(
+        id=post_item.id,
+        news_id=post_item.news_id,
+        generated_text=post_item.generated_text,
+        status=post_item.status,
+        created_at=post_item.created_at,
+        published_at=post_item.published_at,
+        source=post_item.source,
+        provider=post_item.provider,
+    )

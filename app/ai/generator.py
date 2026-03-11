@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.ai.base import TextGenerationClient
+from app.models import NewsItem
 
 DEFAULT_INSTRUCTIONS = (
     "Ты редактор новостного Telegram-канала. "
@@ -52,3 +53,27 @@ class PostGenerator:
             raise ValueError("LLM returned empty text")
 
         return GeneratedPost(text=text)
+
+    async def generate_from_news(self, news_item: NewsItem) -> GeneratedPost:
+        input_text = self._build_news_input(news_item)
+        return await self.generate_from_text(input_text)
+
+    @staticmethod
+    def _build_news_input(news_item: NewsItem) -> str:
+        parts: list[str] = [
+            f"Заголовок:{news_item.title}",
+            f"Источник:{news_item.source}",
+        ]
+
+        if news_item.summary:
+            parts.append(f"Краткое описание: {news_item.summary}")
+
+        if news_item.raw_text:
+            parts.append(f"Текст: {news_item.raw_text}")
+
+        if news_item.url:
+            parts.append(f"Ссылка: {news_item.url}")
+
+        parts.append(f"Дата публикации: {news_item.published_at.isoformat()}")
+
+        return "\n".join(parts)

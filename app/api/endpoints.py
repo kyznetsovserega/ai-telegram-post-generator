@@ -108,6 +108,22 @@ async def generate_post_from_news(
             status_code=404,
             detail=f"News item with id='{payload.news_id}' not found",
         )
+
+    # Проверяем существующий пост
+    existing_post = post_storage.get_by_news_id(news_item.id)
+
+    if existing_post is not None:
+        return GenerateFromNewsResponse(
+            id=existing_post.id,
+            news_id=existing_post.news_id,
+            generated_text=existing_post.generated_text,
+            status=existing_post.status,
+            created_at=existing_post.created_at,
+            published_at=existing_post.published_at,
+            source=existing_post.source,
+            provider=existing_post.provider,
+        )
+
     try:
         client = build_text_generation_client()
         generator = PostGenerator(client=client)

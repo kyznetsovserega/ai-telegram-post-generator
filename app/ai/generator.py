@@ -1,9 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from locale import normalize
-
-from sentry_sdk.ai.utils import source_role
 
 from app.ai.base import TextGenerationClient
 from app.models import NewsItem
@@ -81,16 +78,16 @@ class PostGenerator:
         url = (news_item.url or "").strip()
 
         if title:
-            parts.append(f"Краткое описание: {title}")
+            parts.append(f"Заголовок: {title}")
 
         if source:
-            parts.append(f"Текст: {source}")
+            parts.append(f"Источник: {source}")
 
         if summary:
-            parts.append(f"Ссылка: {summary}")
+            parts.append(f"Краткое описание: {summary}")
 
         if raw_text:
-            parts.append(f"Ссылка: {raw_text}")
+            parts.append(f"Текст: {raw_text}")
 
         if url:
             parts.append(f"Ссылка: {url}")

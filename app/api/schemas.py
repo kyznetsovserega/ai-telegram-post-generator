@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import field
 from datetime import datetime
-from typing import List, Optional, Any, Self
+from typing import List, Optional
 
 from pydantic import BaseModel, Field, field_validator
-from unicodedata import normalize
 
 
 # --- Collect ---
@@ -61,3 +59,21 @@ class GenerateFromNewsResponse(BaseModel):
     published_at: Optional[datetime]
     source: str
     provider: str
+
+
+# --- Pasts history ---
+
+class PostHistoryItemResponse(BaseModel):
+    id: str
+    news_id: str
+    generated_text: str
+    status: str
+    created_at: datetime
+    published_at: Optional[datetime]
+    source: str
+    provider: str
+
+
+class PostHistoryListResponse(BaseModel):
+    items: List[PostHistoryItemResponse]
+    total: int

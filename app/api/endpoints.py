@@ -23,6 +23,8 @@ from app.api.schemas import (
     GenerateFromNewsResponse,
     GenerateRequest,
     GenerateResponse,
+    PostHistoryItemResponse,
+    PostHistoryListResponse,
 )
 from app.models import PostItem, PostStatus
 from app.news_parser.sites import available_sites, collect_from_sites
@@ -64,6 +66,31 @@ async def collect_sites(payload: CollectSitesRequest) -> CollectSitesResponse:
         requested_sites=sites,
         collected=len(items),
         saved=saved,
+    )
+
+
+@router.get("/post", response_model=PostHistoryListResponse)
+async def list_generated_posts() -> PostHistoryListResponse:
+    post_storage = JsonlPostStorage(Path("data/posts.jsonl"))
+    posts = post_storage.list_all()
+
+    items = [
+        PostHistoryItemResponse(
+            id=post.id,
+            news_id=post.news_id,
+            generated_text=post.generated_text,
+            status=post.status,
+            created_at=post.created_at,
+            published_at=post.published_at,
+            source=post.source,
+            provider=post.provider,
+        )
+        for post in posts
+    ]
+
+    return PostHistoryListResponse(
+        items=items,
+        total=len(items),
     )
 
 

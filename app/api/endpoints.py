@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import NoReturn
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, status
@@ -23,12 +24,30 @@ from app.api.schemas import (
     GenerateRequest,
     GenerateResponse,
 )
-from app.models import PostItem
+from app.models import PostItem, PostStatus
 from app.news_parser.sites import available_sites, collect_from_sites
 from app.storage.news import JsonlNewsStorage
 from app.storage.posts import JsonlPostStorage
 
 router = APIRouter()
+
+
+def _raise_for_ai_error(exc: Exception) -> NoReturn:
+    if isinstance(exc, AiRateLimitError):
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    if isinstance(exc, AiTemporaryUnavailableError):
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    if isinstance(exc, AiProviderResponseError):
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    if isinstance(exc, ValueError):
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    if isinstance(exc, AiGenerationError):
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    raise HTTPException(
+        status_code=502,
+        detail=f"LLM integration error: {type(exc).__name__}: {exc}",
+    ) from exc
 
 
 @router.post("/collect/sites", response_model=CollectSitesResponse)
@@ -62,23 +81,10 @@ async def generate_post(payload: GenerateRequest) -> GenerateResponse:
         client = build_text_generation_client()
         generator = PostGenerator(client=client)
         post = await generator.generate_from_text(payload.text)
-    except AiRateLimitError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-    except AiTemporaryUnavailableError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-    except AiProviderResponseError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-    except AiGenerationError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-    except Exception as exc:
-        raise HTTPException(
-            status_code=502,
-            detail=f"LLM integration error: {type(exc).__name__}: {exc}",
-        ) from exc
 
-    return GenerateResponse(generated_text=post.text)
+        return GenerateResponse(generated_text=post.text)
+    except Exception as exc:
+        _raise_for_ai_error(exc)
 
 
 @router.post(
@@ -140,27 +146,14 @@ async def generate_post_from_news(payload: GenerateFromNewsRequest, ) -> Generat
                 provider=existing_text_post.provider,
             )
 
-    except AiRateLimitError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-    except AiTemporaryUnavailableError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-    except AiProviderResponseError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-    except AiGenerationError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(
-            status_code=502,
-            detail=f"LLM integration error: {type(exc).__name__}: {exc}",
-        ) from exc
+        _raise_for_ai_error(exc)
 
     post_item = PostItem(
         id=str(uuid4()),
         news_id=news_item.id,
         generated_text=generated_post.text,
-        status="generated",
+        status=PostStatus.GENERATED,
         created_at=datetime.now(timezone.utc),
         published_at=None,
         source=news_item.source,

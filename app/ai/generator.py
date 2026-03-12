@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import asyncio
+
 from dataclasses import dataclass
 
 from app.ai.base import TextGenerationClient
+from app.ai.errors import AiTemporaryUnavailableError
 from app.ai.validators import sanitize_llm_output, validate_llm_output
 from app.models import NewsItem
 
@@ -38,27 +41,50 @@ class GeneratedPost:
 
 
 class PostGenerator:
+    _MAX_ATTEMPTS = 3
+    _RETRY_DELAY_SECONDS = 1.0
+
     def __init__(self, client: TextGenerationClient) -> None:
         self._client = client
 
     async def generate_from_text(self, input_text: str) -> GeneratedPost:
         user_input = PROMPT_TEMPLATE.format(input_text=input_text.strip())
 
-        text = await self._client.generate_text(
+        text = await self._generate_with_retry(
             instructions=DEFAULT_INSTRUCTIONS,
             user_input=user_input,
         )
+
         text = sanitize_llm_output(text)
         validate_llm_output(text)
-
-        if not text:
-            raise ValueError("LLM returned empty text")
 
         return GeneratedPost(text=text)
 
     async def generate_from_news(self, news_item: NewsItem) -> GeneratedPost:
         input_text = self._build_news_input(news_item)
         return await self.generate_from_text(input_text)
+
+    async def _generate_with_retry(self, *, instructions: str, user_input: str) -> str:
+        last_error: AiTemporaryUnavailableError | None = None
+
+        for attempt in range(1, self._MAX_ATTEMPTS + 1):
+            try:
+                return await self._client.generate_text(
+                    instructions=instructions,
+                    user_input=user_input,
+                )
+            except AiTemporaryUnavailableError as exc:
+                last_error = exc
+
+                if attempt == self._MAX_ATTEMPTS:
+                    break
+
+                await asyncio.sleep(self._RETRY_DELAY_SECONDS)
+
+        if last_error is not None:
+            raise last_error
+
+        raise RuntimeError("Retry pipeline failed unexpectedly")
 
     @staticmethod
     def _normalize_input_news(input_text: str) -> str:

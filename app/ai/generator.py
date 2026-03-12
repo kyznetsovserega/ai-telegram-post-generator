@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.ai.base import TextGenerationClient
+from app.ai.validators import sanitize_llm_output, validate_llm_output
 from app.models import NewsItem
 
 DEFAULT_INSTRUCTIONS = (
@@ -47,7 +48,8 @@ class PostGenerator:
             instructions=DEFAULT_INSTRUCTIONS,
             user_input=user_input,
         )
-        text = text.strip()
+        text = sanitize_llm_output(text)
+        validate_llm_output(text)
 
         if not text:
             raise ValueError("LLM returned empty text")

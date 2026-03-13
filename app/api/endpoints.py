@@ -69,7 +69,7 @@ async def collect_sites(payload: CollectSitesRequest) -> CollectSitesResponse:
     )
 
 
-@router.get("/post", response_model=PostHistoryListResponse)
+@router.get("/posts", response_model=PostHistoryListResponse)
 async def list_generated_posts() -> PostHistoryListResponse:
     post_storage = JsonlPostStorage(Path("data/posts.jsonl"))
     posts = post_storage.list_all()
@@ -119,7 +119,7 @@ async def generate_post(payload: GenerateRequest) -> GenerateResponse:
     response_model=GenerateFromNewsResponse,
     status_code=status.HTTP_201_CREATED,
 )
-async def generate_post_from_news(payload: GenerateFromNewsRequest, ) -> GenerateFromNewsResponse:
+async def generate_post_from_news(payload: GenerateFromNewsRequest) -> GenerateFromNewsResponse:
     provider = config.LLM_PROVIDER.lower()
 
     if provider == "openai" and not config.OPENAI_API_KEY:

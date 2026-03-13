@@ -44,5 +44,5 @@ class PostItem(BaseModel):
     published_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=utc_now)
 
-    source: Optional[str] = None
-    provider: Optional[str] = None
+    source: str
+    provider: str

@@ -61,7 +61,7 @@ class GenerateFromNewsResponse(BaseModel):
     provider: str
 
 
-# --- Pasts history ---
+# --- Posts history ---
 
 class PostHistoryItemResponse(BaseModel):
     id: str

@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
+
 def _env(name: str, default: str) -> str:
     return os.getenv(name, default)
 
@@ -25,10 +26,9 @@ COLLECT_SITES_DEFAULT = _env("COLLECT_SITES_DEFAULT", "habr")  # "habr,vc,rbc"
 LLM_PROVIDER = _env("LLM_PROVIDER", "openai")
 
 # Open AI
-OPENAI_API_KEY = _env("OPENAI_API_KEY","")
+OPENAI_API_KEY = _env("OPENAI_API_KEY", "")
 OPENAI_MODEL = _env("OPENAI_MODEL", "gpt-5.2")
 
 # Gemini
 GEMINI_API_KEY = _env("GEMINI_API_KEY", "")
 GEMINI_MODEL = _env("GEMINI_MODEL", "gemini-2.5-flash")
-

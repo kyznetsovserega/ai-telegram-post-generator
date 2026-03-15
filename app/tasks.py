@@ -10,7 +10,7 @@ from app.config import (
     CELERY_RESULT_BACKEND,
     COLLECT_SITES_DEFAULT,
 )
-
+from app.services.filter_service import FilterService
 from app.services.news_service import NewsService
 
 celery_app = Celery(
@@ -62,4 +62,29 @@ def collect_sites_task() -> dict:
         "requested_sites": requested_sites,
         "collected": collected,
         "saved": saved,
+    }
+
+@celery_app.task(name="app.tasks.filter_news_task")
+def filter_news_task() -> dict:
+    news_service = NewsService()
+    filter_service = FilterService()
+
+    items = news_service.storage.list_all()
+    filtered_items = filter_service.filter_news(items)
+
+    return {
+        "total": len(items),
+        "filtered": len(filtered_items),
+        "dropped": len(items) - len(filtered_items),
+    }
+
+
+@celery_app.task(name="app.tasks.collect_and_filter_news_task")
+def collect_and_filter_news_task() -> dict:
+    collect_result = collect_sites_task()
+    filter_result = filter_news_task()
+
+    return {
+        "collect": collect_result,
+        "filter": filter_result,
     }

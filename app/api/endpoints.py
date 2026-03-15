@@ -1,21 +1,15 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from pathlib import Path
 from typing import NoReturn
-from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, status
 
-from app import config
 from app.ai.errors import (
     AiGenerationError,
     AiProviderResponseError,
     AiRateLimitError,
     AiTemporaryUnavailableError,
 )
-from app.ai.factory import build_text_generation_client
-from app.ai.generator import PostGenerator
 from app.api.schemas import (
     CollectSitesRequest,
     CollectSitesResponse,
@@ -26,15 +20,16 @@ from app.api.schemas import (
     PostHistoryItemResponse,
     PostHistoryListResponse,
 )
-from app.models import PostItem, PostStatus
-from app.news_parser.sites import available_sites, collect_from_sites
-from app.storage.news import JsonlNewsStorage
-from app.storage.posts import JsonlPostStorage
+from app.services import GenerationService, NewsService, PostService
 
 router = APIRouter()
 
 
 def _raise_for_ai_error(exc: Exception) -> NoReturn:
+    if isinstance(exc, RuntimeError):
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    if isinstance(exc, LookupError):
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     if isinstance(exc, AiRateLimitError):
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     if isinstance(exc, AiTemporaryUnavailableError):
@@ -54,25 +49,23 @@ def _raise_for_ai_error(exc: Exception) -> NoReturn:
 
 @router.post("/collect/sites", response_model=CollectSitesResponse)
 async def collect_sites(payload: CollectSitesRequest) -> CollectSitesResponse:
-    storage = JsonlNewsStorage(path=Path("data/news.jsonl"))
-
-    supported = set(available_sites())
-    sites = [s for s in payload.sites if s in supported]
-
-    items = await collect_from_sites(sites=sites, limit_per_site=payload.limit_per_site)
-    saved = storage.save_many(items)
+    service = NewsService()
+    requested_sites, collected, saved = await service.collect_from_sites(
+        sites=payload.sites,
+        limit_per_site=payload.limit_per_site,
+    )
 
     return CollectSitesResponse(
-        requested_sites=sites,
-        collected=len(items),
+        requested_sites=requested_sites,
+        collected=collected,
         saved=saved,
     )
 
 
 @router.get("/posts", response_model=PostHistoryListResponse)
 async def list_generated_posts() -> PostHistoryListResponse:
-    post_storage = JsonlPostStorage(Path("data/posts.jsonl"))
-    posts = post_storage.list_all()
+    service = PostService()
+    posts = service.list_all()
 
     items = [
         PostHistoryItemResponse(
@@ -88,28 +81,15 @@ async def list_generated_posts() -> PostHistoryListResponse:
         for post in posts
     ]
 
-    return PostHistoryListResponse(
-        items=items,
-        total=len(items),
-    )
+    return PostHistoryListResponse(items=items, total=len(items))
 
 
 @router.post("/generate/", response_model=GenerateResponse)
 async def generate_post(payload: GenerateRequest) -> GenerateResponse:
-    provider = config.LLM_PROVIDER.lower()
-
-    if provider == "openai" and not config.OPENAI_API_KEY:
-        raise HTTPException(status_code=500, detail="OPENAI_API_KEY is not configured")
-
-    if provider == "gemini" and not config.GEMINI_API_KEY:
-        raise HTTPException(status_code=500, detail="GEMINI_API_KEY is not configured")
-
     try:
-        client = build_text_generation_client()
-        generator = PostGenerator(client=client)
-        post = await generator.generate_from_text(payload.text)
-
-        return GenerateResponse(generated_text=post.text)
+        service = GenerationService()
+        generated_text = await service.generate_from_text(payload.text)
+        return GenerateResponse(generated_text=generated_text)
     except Exception as exc:
         _raise_for_ai_error(exc)
 
@@ -120,82 +100,19 @@ async def generate_post(payload: GenerateRequest) -> GenerateResponse:
     status_code=status.HTTP_201_CREATED,
 )
 async def generate_post_from_news(payload: GenerateFromNewsRequest) -> GenerateFromNewsResponse:
-    provider = config.LLM_PROVIDER.lower()
-
-    if provider == "openai" and not config.OPENAI_API_KEY:
-        raise HTTPException(status_code=500, detail="OPENAI_API_KEY is not configured")
-
-    if provider == "gemini" and not config.GEMINI_API_KEY:
-        raise HTTPException(status_code=500, detail="GEMINI_API_KEY is not configured")
-
-    news_storage = JsonlNewsStorage(path=Path("data/news.jsonl"))
-    post_storage = JsonlPostStorage(Path("data/posts.jsonl"))
-
-    news_item = news_storage.get_by_id(payload.news_id)
-    if news_item is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"News item with id='{payload.news_id}' not found",
-        )
-
-    # Проверяем существующий пост
-    existing_post = post_storage.get_by_news_id(news_item.id)
-
-    if existing_post is not None:
-        return GenerateFromNewsResponse(
-            id=existing_post.id,
-            news_id=existing_post.news_id,
-            generated_text=existing_post.generated_text,
-            status=existing_post.status,
-            created_at=existing_post.created_at,
-            published_at=existing_post.published_at,
-            source=existing_post.source,
-            provider=existing_post.provider,
-        )
-
     try:
-        client = build_text_generation_client()
-        generator = PostGenerator(client=client)
-        generated_post = await generator.generate_from_news(news_item)
+        service = GenerationService()
+        post_item = await service.generate_from_news(payload.news_id)
 
-        # Проверяем дубликат по сгенерированному тексту
-        existing_text_post = post_storage.get_by_generated_text(generated_post.text)
-
-        if existing_text_post is not None:
-            return GenerateFromNewsResponse(
-                id=existing_text_post.id,
-                news_id=existing_text_post.news_id,
-                generated_text=existing_text_post.generated_text,
-                status=existing_text_post.status,
-                created_at=existing_text_post.created_at,
-                published_at=existing_text_post.published_at,
-                source=existing_text_post.source,
-                provider=existing_text_post.provider,
-            )
-
+        return GenerateFromNewsResponse(
+            id=post_item.id,
+            news_id=post_item.news_id,
+            generated_text=post_item.generated_text,
+            status=post_item.status,
+            created_at=post_item.created_at,
+            published_at=post_item.published_at,
+            source=post_item.source,
+            provider=post_item.provider,
+        )
     except Exception as exc:
         _raise_for_ai_error(exc)
-
-    post_item = PostItem(
-        id=str(uuid4()),
-        news_id=news_item.id,
-        generated_text=generated_post.text,
-        status=PostStatus.GENERATED,
-        created_at=datetime.now(timezone.utc),
-        published_at=None,
-        source=news_item.source,
-        provider=provider,
-    )
-
-    post_storage.save(post_item)
-
-    return GenerateFromNewsResponse(
-        id=post_item.id,
-        news_id=post_item.news_id,
-        generated_text=post_item.generated_text,
-        status=post_item.status,
-        created_at=post_item.created_at,
-        published_at=post_item.published_at,
-        source=post_item.source,
-        provider=post_item.provider,
-    )

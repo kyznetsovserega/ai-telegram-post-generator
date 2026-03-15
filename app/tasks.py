@@ -1,15 +1,17 @@
 from __future__ import annotations
 
+import asyncio
+
 from celery import Celery
 from celery.schedules import crontab
-import requests
 
 from app.config import (
     CELERY_BROKER_URL,
     CELERY_RESULT_BACKEND,
     COLLECT_SITES_DEFAULT,
-    FASTAPI_BASE_URL,
 )
+
+from app.services.news_service import NewsService
 
 celery_app = Celery(
     "ai_tg_post_generator",
@@ -40,16 +42,24 @@ def ping() -> dict:
     return {"ok": True}
 
 
-@celery_app.task(name="app.tasks.collect_sites_via_api")
-def collect_sites_via_api() -> dict:
+@celery_app.task(name="app.tasks.collect_sites_task")
+def collect_sites_task() -> dict:
     """
-    Временно : Celery вызывает существующий FastAPI endpoint /api/collect/sites.
-    Чтобы быстро получить работающий pipline "beat -> worker -> сбор".
+    Celery task для сбора новостей напрямую через service layer.
+    Без HTTP-вызова FastAPI.
     """
-    sites = [s.strip() for s in COLLECT_SITES_DEFAULT.split(",") if s.strip()]
-    payload = {"sites": sites, "limit_per_site": 3}
+    sites = [site.strip() for site in COLLECT_SITES_DEFAULT.split(",") if site.strip()]
+    service = NewsService()
 
-    url = f"{FASTAPI_BASE_URL}/api/collect/sites"
-    resp = requests.post(url, json=payload, timeout=30)
-    resp.raise_for_status()
-    return resp.json()
+    requested_sites, collected, saved = asyncio.run(
+        service.collect_from_sites(
+            sites=sites,
+            limit_per_site=3,
+        )
+    )
+
+    return {
+        "requested_sites": requested_sites,
+        "collected": collected,
+        "saved": saved,
+    }

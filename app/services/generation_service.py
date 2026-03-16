@@ -7,7 +7,7 @@ from uuid import uuid4
 from app import config
 from app.ai.factory import build_text_generation_client
 from app.ai.generator import PostGenerator
-from app.models import PostItem, PostStatus
+from app.models import NewsItem, PostItem, PostStatus
 from app.storage.news import JsonlNewsStorage
 from app.storage.posts import JsonlPostStorage
 
@@ -76,3 +76,43 @@ class GenerationService:
 
         self.post_storage.save(post_item)
         return post_item
+
+    async def generate_for_news_items(
+            self,
+            items: list[NewsItem],
+    ) -> dict[str, int]:
+        """
+        Пакетная генерация постов для списка новостей.
+
+        Логика намеренно простая:
+        - если пост по news_id уже есть, считаем как skipped
+        - если генерация завершилась ошибкой, считаем как failed
+        - если сервис вернул пост не для текущего news_id
+          (например, из-за дедупликации по тексту), считаем как skipped
+        - только реально созданный пост для текущей новости считаем generated
+        """
+        summary = {
+            "total": len(items),
+            "generated": 0,
+            "skipped": 0,
+            "failed": 0,
+        }
+
+        for item in items:
+            existing_post = self.post_storage.get_by_news_id(item.id)
+            if existing_post is not None:
+                summary["skipped"] += 1
+                continue
+
+            try:
+                post_item = await self.generate_from_news(item.id)
+            except Exception:
+                summary["failed"] += 1
+                continue
+
+            if post_item.news_id == item.id:
+                summary["generated"] += 1
+            else:
+                summary["skipped"] += 1
+
+        return summary

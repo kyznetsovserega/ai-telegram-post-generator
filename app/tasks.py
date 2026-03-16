@@ -11,6 +11,7 @@ from app.config import (
     COLLECT_SITES_DEFAULT,
 )
 from app.services.filter_service import FilterService
+from app.services.generation_service import GenerationService
 from app.services.news_service import NewsService
 
 celery_app = Celery(
@@ -64,6 +65,7 @@ def collect_sites_task() -> dict:
         "saved": saved,
     }
 
+
 @celery_app.task(name="app.tasks.filter_news_task")
 def filter_news_task() -> dict:
     news_service = NewsService()
@@ -87,4 +89,46 @@ def collect_and_filter_news_task() -> dict:
     return {
         "collect": collect_result,
         "filter": filter_result,
+    }
+
+
+@celery_app.task(name="app.tasks.generate_posts_task")
+def generate_posts_task() -> dict:
+    """Генерация постов для новостей, прошедших минимальную фильтрацию. """
+    news_service = NewsService()
+    filter_service = FilterService()
+    generation_service = GenerationService()
+
+    items = news_service.storage.list_all()
+    filtered_items = filter_service.filter_news(items)
+
+    return asyncio.run(
+        generation_service.generate_for_news_items(filtered_items)
+    )
+
+
+@celery_app.task(name="app.tasks.collect_and_filter_news_task")
+def collect_and_filter_news_task() -> dict:
+    collect_result = collect_sites_task()
+    filter_result = filter_news_task()
+
+    return {
+        "collect": collect_result,
+        "filter": filter_result,
+    }
+
+
+@celery_app.task(name="app.tasks.collect_filter_generate_posts_task")
+def collect_filter_generate_posts_task() -> dict:
+    """
+    collect -> filter -> generate
+    """
+    collect_result = collect_sites_task()
+    filter_result = filter_news_task()
+    generate_result = generate_posts_task()
+
+    return {
+        "collect": collect_result,
+        "filter": filter_result,
+        "generate": generate_result,
     }

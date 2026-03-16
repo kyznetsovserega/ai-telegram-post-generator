@@ -10,6 +10,7 @@ from app.config import (
     CELERY_RESULT_BACKEND,
     COLLECT_SITES_DEFAULT,
 )
+from app.models import NewsStatus
 from app.services.filter_service import FilterService
 from app.services.generation_service import GenerationService
 from app.services.news_service import NewsService
@@ -68,36 +69,70 @@ def collect_sites_task() -> dict:
 @celery_app.task(name="app.tasks.filter_news_task")
 def filter_news_task() -> dict:
     """
-    Минимальная фильтрация новостей.
+    Фильтрация только новых новостей с изменением их статуса.
     """
     news_service = NewsService()
     filter_service = FilterService()
 
-    items = news_service.storage.list_all()
-    filtered_items = filter_service.filter_news(items)
+    all_items = news_service.list_all()
+    new_items = [item for item in all_items if item.status == NewsStatus.NEW]
+
+    filtered_items, dropped_items = filter_service.apply_filter(new_items)
+
+    filtered_by_id = {item.id: item for item in filtered_items}
+    dropped_by_id = {item.id: item for item in dropped_items}
+
+    updated_items = [
+        filtered_by_id.get(item.id)
+        or dropped_by_id.get(item.id)
+        or item
+        for item in all_items
+    ]
+
+    news_service.replace_all(updated_items)
 
     return {
-        "total": len(items),
+        "total": len(new_items),
         "filtered": len(filtered_items),
-        "dropped": len(items) - len(filtered_items),
+        "dropped": len(dropped_items),
     }
 
 
 @celery_app.task(name="app.tasks.generate_posts_task")
 def generate_posts_task() -> dict:
     """
-    Генерация постов для новостей после фильтрации.
+    Генерация постов только для news со статусом FILTERED.
+    После успешной генерации news помечается как GENERATED.
     """
     news_service = NewsService()
-    filter_service = FilterService()
     generation_service = GenerationService()
 
-    items = news_service.storage.list_all()
-    filtered_items = filter_service.filter_news(items)
+    all_items = news_service.list_all()
+    filtered_items = [
+        item for item in all_items if item.status == NewsStatus.FILTERED
+    ]
 
-    return asyncio.run(
+    generation_result = asyncio.run(
         generation_service.generate_for_news_items(filtered_items)
     )
+
+    generated_ids = {
+        item.id
+        for item in filtered_items
+    }
+
+    updated_items: list = []
+    for item in all_items:
+        if item.id in generated_ids:
+            updated_items.append(
+                item.model_copy(update={"status": NewsStatus.GENERATED})
+            )
+        else:
+            updated_items.append(item)
+
+    news_service.replace_all(updated_items)
+
+    return generation_result
 
 
 @celery_app.task(name="app.tasks.collect_filter_generate_posts_task")

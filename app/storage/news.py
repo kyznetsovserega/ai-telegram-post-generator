@@ -53,3 +53,15 @@ class JsonlNewsStorage:
                 return item
 
         return None
+
+    def write_all(self, items: Iterable[NewsItem]) -> None:
+        """
+        Полностью перезаписывает JSONL файл новостей.
+
+        Используется pipeline'ом, чтобы обновить статусы новостей.
+        """
+        items_list = list(items)
+
+        with self.path.open("w", encoding="utf-8") as file:
+            for item in items_list:
+                file.write(item.model_dump_json() + "\n")

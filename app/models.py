@@ -15,6 +15,12 @@ def utc_now() -> datetime:
     """
     return datetime.now(timezone.utc)
 
+class NewsStatus(str, Enum):
+    """Статус обработки новости внутри pipeline."""
+    NEW = "new"
+    FILTERED = "filtered"
+    DROPPED = "dropped"
+    GENERATED = "generated"
 
 class NewsItem(BaseModel):
     """Нормализованный объект новостей, сохраняемый после анализа."""
@@ -25,6 +31,7 @@ class NewsItem(BaseModel):
     source: str
     published_at: datetime
     raw_text: Optional[str] = None
+    status: NewsStatus=NewsStatus.NEW
 
 
 class PostStatus(str, Enum):

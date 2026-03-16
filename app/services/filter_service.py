@@ -1,17 +1,24 @@
 from __future__ import annotations
 
-from app.models import NewsItem
+from app.models import NewsItem,NewsStatus
 
 
 class FilterService:
     """Минимальная фильтрация новостей для pipeline."""
 
-    def filter_news(self, items: list[NewsItem]) -> list[NewsItem]:
-        result: list[NewsItem] = []
+    def apply_filter(self, items: list[NewsItem]) -> tuple[list[NewsItem], list[NewsItem]]:
+        """
+        Возвращает два списка:
+        - filtered_items: новости, пригодные для генерации
+        - dropped_items: новости, отброшенные фильтром
+        """
+        filtered_items: list[NewsItem] = []
+        dropped_items: list[NewsItem] = []
         seen_ids: set[str] = set()
 
         for item in items:
             if item.id in seen_ids:
+                dropped_items.append(item.model_copy(update={"status": NewsStatus.DROPPED}))
                 continue
 
             title = item.title.strip()
@@ -19,9 +26,12 @@ class FilterService:
             raw_text = (item.raw_text or "").strip()
 
             if not title and not summary and not raw_text:
+                dropped_items.append(item.model_copy(update={"status": NewsStatus.DROPPED}))
                 continue
 
             seen_ids.add(item.id)
-            result.append(item)
+            filtered_items.append(
+                item.model_copy(update={"status": NewsStatus.FILTERED})
+            )
 
-        return result
+        return filtered_items, dropped_items

@@ -31,7 +31,7 @@ celery_app.conf.update(
 # Celery Beat: каждые 30 мин запускать сбор новостей
 celery_app.conf.beat_schedule = {
     "collect-sites-every-30-minutes": {
-        "task": "app.tasks.collect_sites_via_api",
+        "task": "app.tasks.collect_sites_task",
         "schedule": crontab(minute="*/30"),
         "args": (),
     }
@@ -47,7 +47,6 @@ def ping() -> dict:
 def collect_sites_task() -> dict:
     """
     Celery task для сбора новостей напрямую через service layer.
-    Без HTTP-вызова FastAPI.
     """
     sites = [site.strip() for site in COLLECT_SITES_DEFAULT.split(",") if site.strip()]
     service = NewsService()
@@ -68,6 +67,9 @@ def collect_sites_task() -> dict:
 
 @celery_app.task(name="app.tasks.filter_news_task")
 def filter_news_task() -> dict:
+    """
+    Минимальная фильтрация новостей.
+    """
     news_service = NewsService()
     filter_service = FilterService()
 
@@ -81,20 +83,11 @@ def filter_news_task() -> dict:
     }
 
 
-@celery_app.task(name="app.tasks.collect_and_filter_news_task")
-def collect_and_filter_news_task() -> dict:
-    collect_result = collect_sites_task()
-    filter_result = filter_news_task()
-
-    return {
-        "collect": collect_result,
-        "filter": filter_result,
-    }
-
-
 @celery_app.task(name="app.tasks.generate_posts_task")
 def generate_posts_task() -> dict:
-    """Генерация постов для новостей, прошедших минимальную фильтрацию. """
+    """
+    Генерация постов для новостей после фильтрации.
+    """
     news_service = NewsService()
     filter_service = FilterService()
     generation_service = GenerationService()
@@ -107,20 +100,10 @@ def generate_posts_task() -> dict:
     )
 
 
-@celery_app.task(name="app.tasks.collect_and_filter_news_task")
-def collect_and_filter_news_task() -> dict:
-    collect_result = collect_sites_task()
-    filter_result = filter_news_task()
-
-    return {
-        "collect": collect_result,
-        "filter": filter_result,
-    }
-
-
 @celery_app.task(name="app.tasks.collect_filter_generate_posts_task")
 def collect_filter_generate_posts_task() -> dict:
     """
+    Полный pipeline:
     collect -> filter -> generate
     """
     collect_result = collect_sites_task()

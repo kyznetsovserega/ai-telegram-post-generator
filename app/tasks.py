@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 
-from celery import Celery
+from celery import Celery, chain
 from celery.schedules import crontab
 
 from app.config import (
@@ -67,7 +67,7 @@ def collect_sites_task() -> dict:
 
 
 @celery_app.task(name="app.tasks.filter_news_task")
-def filter_news_task() -> dict:
+def filter_news_task(previous_result:dict | None=None) -> dict:
     """
     Фильтрация только новых новостей с изменением их статуса.
     """
@@ -99,7 +99,7 @@ def filter_news_task() -> dict:
 
 
 @celery_app.task(name="app.tasks.generate_posts_task")
-def generate_posts_task() -> dict:
+def generate_posts_task(previous_result:dict | None=None) -> dict:
     """
     Генерация постов только для news со статусом FILTERED.
     После успешной генерации news помечается как GENERATED.
@@ -143,6 +143,21 @@ def generate_posts_task() -> dict:
     return generation_result
 
 
+@celery_app.task(name="app.tasks.pipeline_chain_task")
+def pipeline_chain_task() -> str:
+    """
+     Orchestration через Celery chain.
+    """
+    workflow = chain(
+        collect_sites_task.s(),
+        filter_news_task.s(),
+        generate_posts_task.s(),
+    )
+    result = workflow.apply_async()
+
+    return result.id
+
+# Временно для сравнения
 @celery_app.task(name="app.tasks.collect_filter_generate_posts_task")
 def collect_filter_generate_posts_task() -> dict:
     """

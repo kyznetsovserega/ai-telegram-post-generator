@@ -14,6 +14,7 @@ from app.models import NewsStatus
 from app.services.filter_service import FilterService
 from app.services.generation_service import GenerationService
 from app.services.news_service import NewsService
+from app.services.publish_service import PublishService
 
 celery_app = Celery(
     "ai_tg_post_generator",
@@ -67,7 +68,7 @@ def collect_sites_task() -> dict:
 
 
 @celery_app.task(name="app.tasks.filter_news_task")
-def filter_news_task(previous_result:dict | None=None) -> dict:
+def filter_news_task(previous_result: dict | None = None) -> dict:
     """
     Фильтрация только новых новостей с изменением их статуса.
     """
@@ -99,7 +100,7 @@ def filter_news_task(previous_result:dict | None=None) -> dict:
 
 
 @celery_app.task(name="app.tasks.generate_posts_task")
-def generate_posts_task(previous_result:dict | None=None) -> dict:
+def generate_posts_task(previous_result: dict | None = None) -> dict:
     """
     Генерация постов только для news со статусом FILTERED.
     После успешной генерации news помечается как GENERATED.
@@ -143,26 +144,36 @@ def generate_posts_task(previous_result:dict | None=None) -> dict:
     return generation_result
 
 
+@celery_app.task(name="app.tasks.publish_posts_task")
+def publish_posts_task(previous_result: dict | None = None) -> dict:
+    """
+    Публикация постов, уже сгенерированных AI.
+    """
+    publish_service = PublishService()
+    return publish_service.publish_generated_posts()
+
+
 @celery_app.task(name="app.tasks.pipeline_chain_task")
 def pipeline_chain_task() -> str:
     """
-     Orchestration через Celery chain.
+    Orchestration через Celery chain:
+    collect -> filter -> generate -> publish
     """
     workflow = chain(
         collect_sites_task.s(),
         filter_news_task.s(),
         generate_posts_task.s(),
+        publish_posts_task.s(),
     )
     result = workflow.apply_async()
 
     return result.id
 
-# Временно для сравнения
+
 @celery_app.task(name="app.tasks.collect_filter_generate_posts_task")
 def collect_filter_generate_posts_task() -> dict:
     """
-    Полный pipeline:
-    collect -> filter -> generate
+    Временная legacy-версия pipeline без chain.
     """
     collect_result = collect_sites_task()
     filter_result = filter_news_task()

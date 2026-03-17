@@ -32,3 +32,6 @@ OPENAI_MODEL = _env("OPENAI_MODEL", "gpt-5.2")
 # Gemini
 GEMINI_API_KEY = _env("GEMINI_API_KEY", "")
 GEMINI_MODEL = _env("GEMINI_MODEL", "gemini-2.5-flash")
+
+# Telegram publish
+TELEGRAM_CHANNEL = _env("TELEGRAM_CHANNEL", "")

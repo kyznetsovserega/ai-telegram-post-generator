@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Iterable
 
 from app.models import PostItem
 
@@ -59,3 +59,16 @@ class JsonlPostStorage:
             if item.generated_text.strip() == normalized:
                 return item
         return None
+
+    def write_all(self, items: Iterable[PostItem]) -> None:
+        """
+        Полностью перезаписывает JSONL-файл постов.
+
+        Используется pipeline'ом, чтобы обновлять статусы постов
+        после publish-stage.
+        """
+        items_list = list(items)
+
+        with self.file_path.open("w", encoding="utf-8") as file:
+            for item in items_list:
+                file.write(item.model_dump_json() + "\n")

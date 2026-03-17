@@ -32,7 +32,7 @@ celery_app.conf.update(
 # Celery Beat: каждые 30 мин запускать сбор новостей
 celery_app.conf.beat_schedule = {
     "collect-sites-every-30-minutes": {
-        "task": "app.tasks.collect_sites_task",
+        "task": "app.tasks.pipeline_chain_task",
         "schedule": crontab(minute="*/30"),
         "args": (),
     }

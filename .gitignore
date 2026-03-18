@@ -11,3 +11,7 @@ data/
 celerybeat-schedule
 celerybeat-schedule-shm
 celerybeat-schedule-wal
+
+# Telethon session files
+telegram_publisher.session
+telegram_publisher.session-journal

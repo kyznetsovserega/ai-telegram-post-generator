@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.models import PostItem, PostStatus
+from app.models import PostItem, PostStatus, utc_now
 from app.storage.posts import JsonlPostStorage
 from app.telegram.publisher import TelegramPublisher
 
@@ -18,13 +18,12 @@ class PublishService:
 
     def publish_generated_posts(self) -> dict:
         """
-        Публикуем только посты со статусом GENERATED.
-        Возвращает краткую статистику по шагу publish.
+        Публикуем только еще не опубликованные посты.
         """
-        posts = self.post_storage.list_all()
-        generated_posts = [post for post in posts if post.status == PostStatus.GENERATED]
+        all_posts = self.post_storage.list_all()
+        publishable_posts = self.post_storage.list_publishable()
 
-        if not generated_posts:
+        if not publishable_posts:
             return {
                 "total": 0,
                 "published": 0,
@@ -36,7 +35,7 @@ class PublishService:
         published_ids: set[str] = set()
         failed_ids: set[str] = set()
 
-        for post in generated_posts:
+        for post in publishable_posts:
             try:
                 result = self.publisher.publish_post(post.generated_text)
 
@@ -45,6 +44,8 @@ class PublishService:
                         post.model_copy(
                             update={
                                 "status": PostStatus.PUBLISHED,
+                                "published_at": utc_now(),
+                                "external_message_id": result.external_id,
                             }
                         )
                     )
@@ -65,13 +66,13 @@ class PublishService:
 
         final_posts = [
             updated_by_id.get(post.id, post)
-            for post in posts
+            for post in all_posts
         ]
 
         self.post_storage.write_all(final_posts)
 
         return {
-            "total": len(generated_posts),
+            "total": len(publishable_posts),
             "published": len(published_ids),
             "skipped": 0,
             "failed": len(failed_ids),

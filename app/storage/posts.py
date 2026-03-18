@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Optional, Iterable
 
-from app.models import PostItem
+from app.models import PostItem, PostStatus
 
 
 class JsonlPostStorage:
@@ -51,14 +51,21 @@ class JsonlPostStorage:
                 return item
         return None
 
-    def get_by_generated_text(self,text:str) -> Optional[PostItem]:
+    def get_by_generated_text(self, text: str) -> Optional[PostItem]:
         """ Вернуть сообщение с идентичным сгенерированным текстом. """
-        normalized=text.strip()
+        normalized = text.strip()
 
         for item in self.list_all():
             if item.generated_text.strip() == normalized:
                 return item
         return None
+
+    def list_publishable(self) -> list[PostItem]:
+        """ Возвращает только посты , готовые к публикации."""
+        return [
+            item for item in self.list_all()
+            if item.status == PostStatus.GENERATED and item.published_at is None
+        ]
 
     def write_all(self, items: Iterable[PostItem]) -> None:
         """

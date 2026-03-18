@@ -29,7 +29,7 @@ class PublishService:
                 "published": 0,
                 "skipped": 0,
                 "failed": 0,
-                "published_post_id": [],
+                "published_post_ids": [],
                 "failed_post_ids": [],
                 "errors": [],
             }

@@ -77,6 +77,7 @@ async def list_generated_posts() -> PostHistoryListResponse:
             published_at=post.published_at,
             source=post.source,
             provider=post.provider,
+            external_message_id=post.external_message_id,
         )
         for post in posts
     ]
@@ -113,6 +114,7 @@ async def generate_post_from_news(payload: GenerateFromNewsRequest) -> GenerateF
             published_at=post_item.published_at,
             source=post_item.source,
             provider=post_item.provider,
+            external_message_id=post_item.external_message_id,
         )
     except Exception as exc:
         _raise_for_ai_error(exc)

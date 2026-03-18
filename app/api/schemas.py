@@ -59,6 +59,7 @@ class GenerateFromNewsResponse(BaseModel):
     published_at: Optional[datetime]
     source: str
     provider: str
+    external_message_id: Optional[str]
 
 
 # --- Posts history ---
@@ -72,6 +73,7 @@ class PostHistoryItemResponse(BaseModel):
     published_at: Optional[datetime]
     source: str
     provider: str
+    external_message_id: Optional[str]
 
 
 class PostHistoryListResponse(BaseModel):

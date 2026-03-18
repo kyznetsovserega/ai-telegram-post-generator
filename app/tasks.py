@@ -119,27 +119,19 @@ def generate_posts_task(previous_result: dict | None = None) -> dict:
 
     # читаем все созданные посты
     posts = generation_service.post_storage.list_all()
-
-    generated_news_ids = {
-        post.news_id
-        for post in posts
-    }
+    generated_news_ids = {post.news_id for post in posts}
 
     updated_items: list = []
 
     for item in all_items:
-
-        if (
-                item.status == NewsStatus.FILTERED
-                and item.id in generated_news_ids
-        ):
+        if item.status == NewsStatus.FILTERED and item.id in generated_news_ids:
             updated_items.append(
                 item.model_copy(update={"status": NewsStatus.GENERATED})
             )
         else:
             updated_items.append(item)
 
-        news_service.replace_all(updated_items)
+    news_service.replace_all(updated_items)
 
     return generation_result
 

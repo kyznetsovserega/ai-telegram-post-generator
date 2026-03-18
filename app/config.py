@@ -33,5 +33,8 @@ OPENAI_MODEL = _env("OPENAI_MODEL", "gpt-5.2")
 GEMINI_API_KEY = _env("GEMINI_API_KEY", "")
 GEMINI_MODEL = _env("GEMINI_MODEL", "gemini-2.5-flash")
 
-# Telegram publish
+# Telegram publish via Telethon
 TELEGRAM_CHANNEL = _env("TELEGRAM_CHANNEL", "")
+TELEGRAM_API_ID = _env("TELEGRAM_API_ID", "")
+TELEGRAM_API_HASH = _env("TELEGRAM_API_HASH", "")
+TELEGRAM_SESSION_NAME = _env("TELEGRAM_SESSION_NAME", "telegram_publisher")

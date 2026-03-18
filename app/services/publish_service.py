@@ -29,11 +29,15 @@ class PublishService:
                 "published": 0,
                 "skipped": 0,
                 "failed": 0,
+                "published_post_id": [],
+                "failed_post_ids": [],
+                "errors": [],
             }
 
         updated_posts: list[PostItem] = []
-        published_ids: set[str] = set()
-        failed_ids: set[str] = set()
+        published_ids: list[str] = []
+        failed_ids: list[str] = []
+        errors: list[dict[str, str]] = []
 
         for post in publishable_posts:
             try:
@@ -49,18 +53,30 @@ class PublishService:
                             }
                         )
                     )
-                    published_ids.add(post.id)
+                    published_ids.append(post.id)
                 else:
                     updated_posts.append(
                         post.model_copy(update={"status": PostStatus.FAILED})
                     )
-                    failed_ids.add(post.id)
+                    failed_ids.append(post.id)
+                    errors.append(
+                        {
+                            "post_id": post.id,
+                            "reason": result.error_message or "Unknown publish failure",
+                        }
+                    )
 
-            except Exception:
+            except Exception as exc:
                 updated_posts.append(
                     post.model_copy(update={"status": PostStatus.FAILED})
                 )
-                failed_ids.add(post.id)
+                failed_ids.append(post.id)
+                errors.append(
+                    {
+                        "post_id": post.id,
+                        "reason": str(exc),
+                    }
+                )
 
         updated_by_id = {post.id: post for post in updated_posts}
 
@@ -76,4 +92,7 @@ class PublishService:
             "published": len(published_ids),
             "skipped": 0,
             "failed": len(failed_ids),
+            "published_post_ids": published_ids,
+            "failed_post_ids": failed_ids,
+            "errors": errors,
         }

@@ -8,6 +8,7 @@ from app.config import TELEGRAM_CHANNEL
 class PublishResult:
     is_published: bool
     external_id: str | None = None
+    error_message:str | None=None
 
 
 class TelegramPublisher:
@@ -28,4 +29,5 @@ class TelegramPublisher:
         return PublishResult(
             is_published=True,
             external_id=None,
+            error_message=None,
         )

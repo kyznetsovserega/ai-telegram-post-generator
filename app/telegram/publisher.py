@@ -49,11 +49,18 @@ class TelegramPublisher:
             api_hash=TELEGRAM_API_HASH,
         )
 
-        async with client:
-            # Пока это только техническая проверка:
-            # конфиг валиден, клиент может быть создан.
+        try:
+            async with client:
+                message = await client.send_message(TELEGRAM_CHANNEL, normalized)
+
+                return PublishResult(
+                    is_published=True,
+                    external_id=str(message.id),
+                    error_message=None,
+                )
+        except Exception as exc:
             return PublishResult(
-                is_published=True,
+                is_published=False,
                 external_id=None,
-                error_message=None,
+                error_message=str(exc),
             )

@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Optional
+from typing import Optional, Any
 from uuid import uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 def utc_now() -> datetime:
@@ -35,6 +35,13 @@ class NewsItem(BaseModel):
     raw_text: Optional[str] = None
     status: NewsStatus = NewsStatus.NEW
 
+    @field_validator("status",mode="before")
+    @classmethod
+    def normalize_news_status(cls,value:Any) -> Any:
+        if isinstance(value,str):
+            return value.strip().lower()
+        return value
+
 
 class PostStatus(str, Enum):
     """ Статус жизненного цикла созданных сообщений. """
@@ -56,3 +63,10 @@ class PostItem(BaseModel):
     source: str
     provider: str
     external_message_id: Optional[str] = None
+
+    @field_validator("status",mode="before")
+    @classmethod
+    def normalize_post_status(cls,value:Any) -> Any:
+        if isinstance(value,str):
+            return value.strip().lower()
+        return value

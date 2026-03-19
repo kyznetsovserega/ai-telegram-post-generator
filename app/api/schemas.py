@@ -15,6 +15,7 @@ class CollectSitesRequest(BaseModel):
 
 class CollectSitesResponse(BaseModel):
     requested_sites: List[str]
+    processed_sites: List[str]
     collected: int
     saved: int
 

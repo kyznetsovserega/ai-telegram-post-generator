@@ -77,6 +77,10 @@ class SourceListResponse(BaseModel):
     total: int
 
 
+class SourceUpdateRequest(BaseModel):
+    enabled: bool
+
+
 # --- Posts history ---
 
 class PostHistoryItemResponse(BaseModel):

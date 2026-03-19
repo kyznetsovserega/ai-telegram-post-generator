@@ -21,6 +21,7 @@ from app.api.schemas import (
     PostHistoryListResponse,
     SourceItemResponse,
     SourceListResponse,
+    SourceUpdateRequest,
 )
 from app.services import GenerationService, NewsService, PostService
 from app.services.source_service import SourceService
@@ -67,6 +68,23 @@ async def list_sources() -> SourceListResponse:
     ]
 
     return SourceListResponse(items=items, total=len(items))
+
+
+@router.patch("/sources/{source_id}", response_model=SourceItemResponse)
+async def update_source(source_id: str, payload: SourceUpdateRequest) -> SourceItemResponse:
+    try:
+        service = SourceService()
+        source = service.set_enabled(source_id=source_id, enabled=payload.enabled)
+
+        return SourceItemResponse(
+            id=source.id,
+            type=source.type,
+            name=source.name,
+            url=source.url,
+            enabled=source.enabled,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post("/collect/sites", response_model=CollectSitesResponse)

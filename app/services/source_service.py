@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from celery.bin.result import result
-
 from app.models import SourceItem
 from app.news_parser.sites import available_source_items
 from app.storage import JsonlSourceStorage
@@ -29,7 +27,6 @@ class SourceService:
 
     def set_enabled(self, source_id: str, enabled: bool) -> SourceItem:
         """ Изменяем состояние источников. """
-
         sources = self.list_all()
 
         updated = False
@@ -42,7 +39,7 @@ class SourceService:
                 result = source
                 break
         if not updated or result is None:
-            raise ValueError(f"Source not found: {source_id}")
+            raise LookupError(f"Source not found: {source_id}")
 
         self.storage.write_all(sources)
 

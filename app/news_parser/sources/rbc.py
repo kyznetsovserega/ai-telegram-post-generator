@@ -7,11 +7,11 @@ import httpx
 from app.models import NewsItem
 from app.news_parser.sources.rss_common import build_rss_items
 
-HABR_RSS_URL = "https://habr.com/ru/rss/all/all/?fl=ru"
+RBC_RSS_URL = "https://rssexport.rbc.ru/rbcnews/news/30/full.rss"
 
 
 @dataclass(frozen=True)
-class HabrRssParser:
+class RbcRssParser:
     timeout_s: float = 15.0
     user_agent: str = "ai-telegram-post-generator/0.1 (+https://example.local)"
 
@@ -21,14 +21,14 @@ class HabrRssParser:
                 headers={"User-Agent": self.user_agent},
                 follow_redirects=True,
         ) as client:
-            response = await client.get(HABR_RSS_URL)
+            response = await client.get(RBC_RSS_URL)
             response.raise_for_status()
             return response.text
 
     async def parse(self, limit: int = 20) -> list[NewsItem]:
         xml = await self.fetch()
         return build_rss_items(
-            source="habr",
+            source="rbc",
             xml=xml,
             limit=limit,
         )

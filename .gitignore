@@ -15,3 +15,6 @@ celerybeat-schedule-wal
 # Telethon session files
 telegram_publisher.session
 telegram_publisher.session-journal
+
+*.session
+*.session-journal

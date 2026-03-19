@@ -19,8 +19,11 @@ from app.api.schemas import (
     GenerateResponse,
     PostHistoryItemResponse,
     PostHistoryListResponse,
+    SourceItemResponse,
+    SourceListResponse,
 )
 from app.services import GenerationService, NewsService, PostService
+from app.services.source_service import SourceService
 
 router = APIRouter()
 
@@ -45,6 +48,25 @@ def _raise_for_ai_error(exc: Exception) -> NoReturn:
         status_code=502,
         detail=f"LLM integration error: {type(exc).__name__}: {exc}",
     ) from exc
+
+
+@router.get("/sources", response_model=SourceListResponse)
+async def list_sources() -> SourceListResponse:
+    service = SourceService()
+    sources = service.list_all()
+
+    items = [
+        SourceItemResponse(
+            id=source.id,
+            type=source.type,
+            name=source.name,
+            url=source.url,
+            enabled=source.enabled,
+        )
+        for source in sources
+    ]
+
+    return SourceListResponse(items=items, total=len(items))
 
 
 @router.post("/collect/sites", response_model=CollectSitesResponse)

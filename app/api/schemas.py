@@ -62,6 +62,21 @@ class GenerateFromNewsResponse(BaseModel):
     external_message_id: Optional[str]
 
 
+# --- Sources ---
+
+class SourceItemResponse(BaseModel):
+    id: str
+    type: str
+    name: str
+    url: Optional[str]
+    enabled: bool
+
+
+class SourceListResponse(BaseModel):
+    items: List[SourceItemResponse]
+    total: int
+
+
 # --- Posts history ---
 
 class PostHistoryItemResponse(BaseModel):

@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Protocol
 
 from app.config import TELEGRAM_SOURCE_CHANNELS
-from app.models import NewsItem
+from app.models import NewsItem, SourceItem, SourceType
 from app.news_parser.sources.habr import HabrRssParser
 from app.news_parser.sources.rbc import RbcRssParser
 from app.news_parser.sources.vc import VcRssParser
@@ -35,6 +35,35 @@ for channel_username in TELEGRAM_SOURCE_CHANNELS:
 
 def available_sites() -> list[str]:
     return sorted(_PARSERS.keys())
+
+
+def available_source_items() -> list[SourceItem]:
+    result: list[SourceItem] = []
+
+    for key in available_sites():
+        if key.startswith("tg"):
+            username = key.removeprefix("tg:")
+            result.append(
+                SourceItem(
+                    id=key,
+                    type=SourceType.TG,
+                    name=f"@{username}",
+                    url=f"https://t.me/{username}",
+                    enabled=True,
+                )
+            )
+            continue
+
+        result.append(
+            SourceItem(
+                id=key,
+                type=SourceType.SITE,
+                name=key,
+                url=None,
+                enabled=True,
+            )
+        )
+    return result
 
 
 async def collect_from_sites(sites: list[str], limit_per_site: int = 20) -> list[NewsItem]:

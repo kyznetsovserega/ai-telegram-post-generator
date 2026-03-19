@@ -18,7 +18,7 @@ class SiteParser(Protocol):
 
 _PARSERS: dict[str, SiteParser] = {
     "habr": HabrRssParser(),
-    "rbk": RbcRssParser(),
+    "rbc": RbcRssParser(),
     "vc": VcRssParser(),
     "tproger": TprogerRssParser(),
 }

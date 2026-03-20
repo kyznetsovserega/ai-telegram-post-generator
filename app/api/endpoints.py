@@ -17,13 +17,17 @@ from app.api.schemas import (
     GenerateFromNewsResponse,
     GenerateRequest,
     GenerateResponse,
+    KeywordCreateRequest,
+    KeywordItemResponse,
+    KeywordListResponse,
     PostHistoryItemResponse,
     PostHistoryListResponse,
     SourceItemResponse,
     SourceListResponse,
     SourceUpdateRequest,
 )
-from app.services import GenerationService, NewsService, PostService
+from app.models import KeywordType
+from app.services import GenerationService, NewsService, PostService, KeywordService
 from app.services.source_service import SourceService
 
 router = APIRouter()
@@ -82,6 +86,55 @@ async def update_source(source_id: str, payload: SourceUpdateRequest) -> SourceI
             name=source.name,
             url=source.url,
             enabled=source.enabled,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+# GET /api/keywords
+@router.get("/keywords", response_model=KeywordListResponse)
+async def list_keywords() -> KeywordListResponse:
+    service = KeywordService()
+    keywords = service.list_all()
+
+    items = [
+        KeywordItemResponse(
+            value=keyword.value,
+            type=keyword.type,
+        )
+        for keyword in keywords
+    ]
+
+    return KeywordListResponse(items=items, total=len(items))
+
+
+# POST /api/keywords
+@router.post("/keywords", response_model=KeywordItemResponse, status_code=status.HTTP_201_CREATED)
+async def create_keyword(payload: KeywordCreateRequest) -> KeywordItemResponse:
+    service = KeywordService()
+    keyword = service.add_keyword(
+        keyword_type=KeywordType(payload.type),
+        value=payload.value,
+    )
+
+    return KeywordItemResponse(
+        value=keyword.value,
+        type=keyword.type,
+    )
+
+
+# DELETE /api/keywords/{keyword_type}/{value}
+@router.delete("/keywords/{keyword_type}/{value}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_keyword(keyword_type: str, value: str) -> None:
+    try:
+        normalized_type = keyword_type.strip().lower()
+        if normalized_type not in {"include", "exclude"}:
+            raise HTTPException(status_code=422, detail="keyword_type must be include or exclude")
+
+        service = KeywordService()
+        service.delete_keyword(
+            keyword_type=KeywordType(normalized_type),
+            value=value,
         )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

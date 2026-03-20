@@ -84,3 +84,21 @@ class SourceItem(BaseModel):
     name: str
     url: Optional[str] = None
     enabled: bool = True
+
+
+class KeywordType(str, Enum):
+    INCLUDE = "include"
+    EXCLUDE = "exclude"
+
+
+class KeywordItem(BaseModel):
+    value: str
+    type: KeywordType
+
+    @field_validator("value")
+    @classmethod
+    def normalize_value(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if not normalized:
+            raise ValueError("keyword value must not be empty")
+        return normalized

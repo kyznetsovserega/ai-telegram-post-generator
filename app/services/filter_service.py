@@ -1,11 +1,14 @@
 from __future__ import annotations
 
-from app.config import FILTER_EXCLUDE_KEYWORDS, FILTER_INCLUDE_KEYWORDS
-from app.models import NewsItem, NewsStatus
+from app.models import NewsItem, NewsStatus, KeywordType
+from app.services.keyword_service import KeywordService
 
 
 class FilterService:
     """MVP-фильтрация новостей для pipeline."""
+
+    def __init__(self) -> None:
+        self.keyword_service = KeywordService()
 
     def apply_filter(self, items: list[NewsItem]) -> tuple[list[NewsItem], list[NewsItem]]:
         """
@@ -13,6 +16,16 @@ class FilterService:
         - filtered_items: новости, пригодные для генерации
         - dropped_items: новости, отброшенные фильтром
         """
+
+        include_keywords = [
+            item.value
+            for item in self.keyword_service.list_by_type(KeywordType.INCLUDE)
+        ]
+        exclude_keywords = [
+            item.value
+            for item in self.keyword_service.list_by_type(KeywordType.EXCLUDE)
+        ]
+
         filtered_items: list[NewsItem] = []
         dropped_items: list[NewsItem] = []
         seen_ids: set[str] = set()
@@ -32,14 +45,15 @@ class FilterService:
                 )
                 continue
 
-            if self._contains_exclude_keyword(searchable_text):
+            if self._contains_keyword(searchable_text, exclude_keywords):
                 dropped_items.append(
                     item.model_copy(update={"status": NewsStatus.DROPPED})
                 )
                 continue
 
-            if FILTER_INCLUDE_KEYWORDS and not self._contains_include_keyword(
-                    searchable_text
+            if include_keywords and not self._contains_keyword(
+                    searchable_text,
+                    include_keywords,
             ):
                 dropped_items.append(
                     item.model_copy(update={"status": NewsStatus.DROPPED})
@@ -65,8 +79,5 @@ class FilterService:
     def _normalize_text(self, value: str) -> str:
         return " ".join(value.lower().split())
 
-    def _contains_include_keyword(self, searchable_text: str) -> bool:
-        return any(keyword.lower() in searchable_text for keyword in FILTER_INCLUDE_KEYWORDS)
-
-    def _contains_exclude_keyword(self, searchable_text: str) -> bool:
-        return any(keyword.lower() in searchable_text for keyword in FILTER_EXCLUDE_KEYWORDS)
+    def _contains_keyword(self, searchable_text: str, keywords: list[str]) -> bool:
+        return any(keyword.lower() in searchable_text for keyword in keywords)

@@ -81,6 +81,38 @@ class SourceListResponse(BaseModel):
 class SourceUpdateRequest(BaseModel):
     enabled: bool
 
+# --- Keyword management API ---
+class KeywordItemResponse(BaseModel):
+    value:str
+    type: str
+
+class KeywordListResponse(BaseModel):
+    items: List[KeywordItemResponse]
+    total: int
+
+class KeywordCreateRequest(BaseModel):
+    value:str = Field(min_length=1)
+    type: int
+
+class KeywordCreateRequest(BaseModel):
+    value: str = Field(min_length=1)
+    type: str
+
+    @field_validator("value")
+    @classmethod
+    def validate_value(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if not normalized:
+            raise ValueError("keyword value must not be empty")
+        return normalized
+
+    @field_validator("type")
+    @classmethod
+    def validate_type(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in {"include", "exclude"}:
+            raise ValueError("type must be include or exclude")
+        return normalized
 
 # --- Posts history ---
 

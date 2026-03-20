@@ -50,18 +50,23 @@ def collect_sites_task() -> dict:
     """
     Celery task для сбора новостей напрямую через service layer.
     """
-    sites = [site.strip() for site in COLLECT_SITES_DEFAULT.split(",") if site.strip()]
+    requested_sites = [
+        site.strip()
+        for site in COLLECT_SITES_DEFAULT.split(",")
+        if site.strip()]
+
     service = NewsService()
 
-    requested_sites, collected, saved = asyncio.run(
+    processed_sites, collected, saved = asyncio.run(
         service.collect_from_sites(
-            sites=sites,
+            sites=requested_sites,
             limit_per_site=3,
         )
     )
 
     return {
         "requested_sites": requested_sites,
+        "processed_sites": processed_sites,
         "collected": collected,
         "saved": saved,
     }

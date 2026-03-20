@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Iterable
 
 from app.models import KeywordItem
+from app.storage.redis_client import get_redis_client
 
 
 class JsonlKeywordStorage:
@@ -74,3 +75,47 @@ class JsonlKeywordStorage:
         with self.file_path.open("w", encoding="utf-8") as file:
             for item in items_list:
                 file.write(item.model_dump_json() + "\n")
+
+
+class RedisKeywordStorage:
+    """ Redis-хранилище для keywords. """
+
+    KEY = "keywords"
+
+    def __init__(self) -> None:
+        self.redis = get_redis_client()
+
+    def _make_key(self, item: KeywordItem) -> str:
+        return f"{item.type.value}:{item.value}"
+
+    def list_all(self) -> list[KeywordItem]:
+        raw_items = self.redis.hgetall(self.KEY)
+
+        result: list[KeywordItem] = []
+
+        for value in raw_items.values():
+            payload = json.loads(value)
+            result.append(KeywordItem.model_validate(payload))
+
+        return result
+
+    def save_many(self, items: Iterable[KeywordItem]) -> int:
+        count = 0
+
+        for item in items:
+            key = self._make_key(item)
+
+            if self.redis.hexists(self.KEY, key):
+                continue
+
+            self.redis.hset(self.KEY, key, item.model_dump_json())
+            count += 1
+
+        return count
+
+    def write_all(self, items: Iterable[KeywordItem]) -> None:
+        self.redis.delete(self.KEY)
+
+        for item in items:
+            key = self._make_key(item)
+            self.redis.hset(self.KEY, key, item.model_dump_json())

@@ -1,19 +1,22 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from app.config import STORAGE_BACKEND
 
+from app.storage.keywords import JsonlKeywordStorage, RedisKeywordStorage
+from app.storage.news import JsonlNewsStorage
+from app.storage.posts import JsonlPostStorage, RedisPostStorage
+from app.storage.sources import JsonlSourceStorage, RedisSourceStorage
 
-#from app.storage.keywords import JsonlKeywordStorage
-#from app.storage.news import JsonlNewsStorage
-#from app.storage.posts import JsonlPostStorage
-#from app.storage.sources import JsonlSourceStorage
+
 #
-#__all__ = [
+# __all__ = [
 #    "JsonlKeywordStorage",
 #    "JsonlNewsStorage",
 #    "JsonlPostStorage",
 #    "JsonlSourceStorage"
-#]
+# ]
 #
 
 def get_storage_backend() -> str:
@@ -30,3 +33,38 @@ def get_storage_backend() -> str:
         return "jsonl"
 
     return backend
+
+
+def get_news_storage():  # NEW
+    backend = get_storage_backend()
+
+    # Redis не реализован
+
+    return JsonlNewsStorage(Path("data/news.jsonl"))
+
+
+def get_post_storage():
+    backend = get_storage_backend()
+
+    if backend == "redis":
+        return RedisPostStorage()
+
+    return JsonlPostStorage()
+
+
+def get_source_storage():
+    backend = get_storage_backend()
+
+    if backend == "redis":
+        return RedisSourceStorage()
+
+    return JsonlSourceStorage()
+
+
+def get_keyword_storage():
+    backend = get_storage_backend()
+
+    if backend == "redis":
+        return RedisKeywordStorage()
+
+    return JsonlKeywordStorage()

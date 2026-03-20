@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from app.models import SourceItem
 from app.news_parser.sites import available_source_items
-from app.storage import JsonlSourceStorage
+from app.storage import get_source_storage
 
 
 class SourceService:
     """ Сервис управления источниками. """
 
     def __init__(self) -> None:
-        self.storage = JsonlSourceStorage()
+        self.storage = get_source_storage()
 
     def list_all(self) -> list[SourceItem]:
         """

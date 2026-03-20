@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from app.config import FILTER_EXCLUDE_KEYWORDS, FILTER_INCLUDE_KEYWORDS
 from app.models import KeywordItem, KeywordType
-from app.storage import JsonlKeywordStorage
+from app.storage import get_keyword_storage
 
 
 class KeywordService:
     """ Сервис управления keyword-фильтрами. """
 
     def __init__(self) -> None:
-        self.storage = JsonlKeywordStorage()
+        self.storage = get_keyword_storage()
 
     def list_all(self) -> list[KeywordItem]:
         """

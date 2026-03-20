@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from app.models import PostItem, PostStatus, utc_now
-from app.storage.posts import JsonlPostStorage
+from app.storage import get_post_storage
 from app.telegram.publisher import TelegramPublisher
 
 
@@ -10,10 +10,9 @@ class PublishService:
 
     def __init__(
             self,
-            post_storage: JsonlPostStorage | None = None,
             publisher: TelegramPublisher | None = None,
     ) -> None:
-        self.post_storage = post_storage or JsonlPostStorage()
+        self.post_storage = get_post_storage()
         self.publisher = publisher or TelegramPublisher()
 
     def publish_generated_posts(self) -> dict:

@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Optional, Iterable
 
 from app.models import PostItem, PostStatus
+from app.storage.redis_client import get_redis_client
 
 
 class JsonlPostStorage:
@@ -79,3 +80,86 @@ class JsonlPostStorage:
         with self.file_path.open("w", encoding="utf-8") as file:
             for item in items_list:
                 file.write(item.model_dump_json() + "\n")
+
+
+class RedisPostStorage:
+    """ Redis-хранилище для сгенерированных сообщений Telegram. """
+
+    IDS_KEY = "posts:ids"
+    ITEM_KEY_PREFIX = "posts:item:"
+
+    def __init__(self) -> None:
+        self.redis = get_redis_client()
+
+    @classmethod
+    def _item_key(cls, post_id: str) -> str:
+        return f"{cls.ITEM_KEY_PREFIX}{post_id}"
+
+    def save(self, post: PostItem) -> None:
+        pipeline = self.redis.pipeline()
+        pipeline.set(self._item_key(post.id), post.model_dump_json())
+        pipeline.sadd(self.IDS_KEY, post.id)
+        pipeline.execute()
+
+    def list_all(self) -> list[PostItem]:
+        ids = sorted(self.redis.smembers(self.IDS_KEY))
+        if not ids:
+            return []
+
+        pipeline = self.redis.pipeline()
+        for post_id in ids:
+            pipeline.get(self._item_key(post_id))
+
+        payloads = pipeline.execute()
+
+        result: list[PostItem] = []
+        for payload in payloads:
+            if not payload:
+                continue
+            result.append(PostItem.model_validate_json(payload))
+
+        return result
+
+    def get_by_id(self, post_id: str) -> Optional[PostItem]:
+        payload = self.redis.get(self._item_key(post_id))
+        if not payload:
+            return None
+
+        return PostItem.model_validate_json(payload)
+
+    def get_by_news_id(self, news_id: str) -> Optional[PostItem]:
+        for item in self.list_all():
+            if item.news_id == news_id:
+                return item
+        return None
+
+    def get_by_generated_text(self, text: str) -> Optional[PostItem]:
+        normalized = text.strip()
+
+        for item in self.list_all():
+            if item.generated_text.strip() == normalized:
+                return item
+        return None
+
+    def list_publishable(self) -> list[PostItem]:
+        return [
+            item for item in self.list_all()
+            if item.status == PostStatus.GENERATED and item.published_at is None
+        ]
+
+    def write_all(self, items: Iterable[PostItem]) -> None:
+        items_list = list(items)
+        existing_ids = self.redis.smembers(self.IDS_KEY)
+
+        pipeline = self.redis.pipeline()
+
+        for post_id in existing_ids:
+            pipeline.delete(self._item_key(post_id))
+
+        pipeline.delete(self.IDS_KEY)
+
+        for item in items_list:
+            pipeline.set(self._item_key(item.id), item.model_dump_json())
+            pipeline.sadd(self.IDS_KEY, item.id)
+
+        pipeline.execute()

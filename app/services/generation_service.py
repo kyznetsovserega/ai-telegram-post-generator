@@ -8,8 +8,7 @@ from app import config
 from app.ai.factory import build_text_generation_client
 from app.ai.generator import PostGenerator
 from app.models import NewsItem, PostItem, PostStatus
-from app.storage.news import JsonlNewsStorage
-from app.storage.posts import JsonlPostStorage
+from app.storage import get_news_storage, get_post_storage
 
 
 class GenerationService:
@@ -20,8 +19,8 @@ class GenerationService:
             news_storage_path: str | Path = "data/news.jsonl",
             post_storage_path: str | Path = "data/posts.jsonl",
     ) -> None:
-        self.news_storage = JsonlNewsStorage(path=Path(news_storage_path))
-        self.post_storage = JsonlPostStorage(file_path=Path(post_storage_path))
+        self.news_storage = get_news_storage()
+        self.post_storage = get_post_storage()
 
     @staticmethod
     def ensure_provider_configured() -> str:

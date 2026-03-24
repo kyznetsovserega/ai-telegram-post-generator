@@ -122,7 +122,33 @@ class SourceListResponse(BaseModel):
 
 
 class SourceUpdateRequest(BaseModel):
-    enabled: bool
+    name: Optional[str] = None
+    url: Optional[str] = None
+    enabled: Optional[bool] = None
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("name must not be empty")
+
+        return normalized
+
+    @field_validator("url")
+    @classmethod
+    def validate_url(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+
+        normalized = value.strip()
+        if not normalized:
+            return None
+
+        return normalized
 
 
 # --- Keyword management API ---

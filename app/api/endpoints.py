@@ -103,7 +103,12 @@ async def create_source(payload: SourceCreateRequest) -> SourceItemResponse:
 async def update_source(source_id: str, payload: SourceUpdateRequest) -> SourceItemResponse:
     try:
         service = SourceService()
-        source = service.set_enabled(source_id=source_id, enabled=payload.enabled)
+        source = service.update_source(
+            source_id=source_id,
+            name=payload.name,
+            url=payload.url,
+            enabled=payload.enabled,
+        )
 
         return SourceItemResponse(
             id=source.id,

@@ -86,3 +86,40 @@ class SourceService:
             raise LookupError(f"Source not found: {source_id}")
 
         self.storage.write_all(filtered_sources)
+
+    def update_source(
+            self,
+            source_id: str,
+            name: str | None = None,
+            url: str | None = None,
+            enabled: bool | None = None,
+    ) -> SourceItem:
+        """
+        Частичное обновление источника.
+        """
+
+        sources = self.list_all()
+
+        target: SourceItem | None = None
+
+        for source in sources:
+            if source.id == source_id:
+                target = source
+                break
+
+        if target is None:
+            raise LookupError(f"Source not found: {source_id}")
+
+        # обновляем только переданные поля
+        if name is not None:
+            target.name = name
+
+        if url is not None:
+            target.url = url
+
+        if enabled is not None:
+            target.enabled = enabled
+
+        self.storage.write_all(sources)
+
+        return target

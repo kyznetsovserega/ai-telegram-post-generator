@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.models import SourceItem
+from app.models import SourceItem, SourceType
 from app.news_parser.sites import available_source_items
 from app.storage import get_source_storage
 
@@ -49,9 +49,15 @@ class SourceService:
         """
         Добавляет новый источник.
 
-        - проверяем, что такого id ещё нет
-        - сохраняем в storage
+        Ограничение MVP:
+        - через API разрешаем создавать только Telegram-источники
+        - встроенные site-источники продолжают приходить из catalog
         """
+        if item.type != SourceType.TG:
+            raise ValueError("Only Telegram sources can be created via API right now")
+
+        if not item.id.startswith("tg:"):
+            raise ValueError("Telegram source id must start with 'tg:'")
 
         existing = self.storage.get_by_id(item.id)
         if existing:

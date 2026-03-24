@@ -73,6 +73,49 @@ class SourceItemResponse(BaseModel):
     enabled: bool
 
 
+class SourceCreateRequest(BaseModel):
+    id: str = Field(min_length=1)
+    type: str
+    name: str = Field(min_length=1)
+    url: Optional[str] = None
+    enabled: bool = True
+
+    @field_validator("id")
+    @classmethod
+    def validate_id(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if not normalized:
+            raise ValueError("source id must not be empty")
+        return normalized
+
+    @field_validator("type")
+    @classmethod
+    def validate_type(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in {"site", "tg"}:
+            raise ValueError("type must be site or tg")
+        return normalized
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("source name must not be empty")
+        return normalized
+
+    @field_validator("url")
+    @classmethod
+    def validate_url(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+
+        normalized = value.strip()
+        if not normalized:
+            return None
+        return normalized
+
+
 class SourceListResponse(BaseModel):
     items: List[SourceItemResponse]
     total: int
@@ -81,18 +124,22 @@ class SourceListResponse(BaseModel):
 class SourceUpdateRequest(BaseModel):
     enabled: bool
 
+
 # --- Keyword management API ---
 class KeywordItemResponse(BaseModel):
-    value:str
+    value: str
     type: str
+
 
 class KeywordListResponse(BaseModel):
     items: List[KeywordItemResponse]
     total: int
 
+
 class KeywordCreateRequest(BaseModel):
-    value:str = Field(min_length=1)
+    value: str = Field(min_length=1)
     type: int
+
 
 class KeywordCreateRequest(BaseModel):
     value: str = Field(min_length=1)
@@ -113,6 +160,7 @@ class KeywordCreateRequest(BaseModel):
         if normalized not in {"include", "exclude"}:
             raise ValueError("type must be include or exclude")
         return normalized
+
 
 # --- Posts history ---
 

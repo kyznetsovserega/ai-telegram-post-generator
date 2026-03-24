@@ -22,11 +22,12 @@ from app.api.schemas import (
     KeywordListResponse,
     PostHistoryItemResponse,
     PostHistoryListResponse,
+    SourceCreateRequest,
     SourceItemResponse,
     SourceListResponse,
     SourceUpdateRequest,
 )
-from app.models import KeywordType
+from app.models import KeywordType, SourceItem, SourceType
 from app.services import GenerationService, NewsService, PostService, KeywordService
 from app.services.source_service import SourceService
 
@@ -72,6 +73,30 @@ async def list_sources() -> SourceListResponse:
     ]
 
     return SourceListResponse(items=items, total=len(items))
+
+@router.post("/sources", response_model=SourceItemResponse, status_code=status.HTTP_201_CREATED)
+async def create_source(payload: SourceCreateRequest) -> SourceItemResponse:
+    try:
+        service = SourceService()
+        source = service.create_source(
+            SourceItem(
+                id=payload.id,
+                type=SourceType(payload.type),
+                name=payload.name,
+                url=payload.url,
+                enabled=payload.enabled,
+            )
+        )
+
+        return SourceItemResponse(
+            id=source.id,
+            type=source.type,
+            name=source.name,
+            url=source.url,
+            enabled=source.enabled,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.patch("/sources/{source_id}", response_model=SourceItemResponse)

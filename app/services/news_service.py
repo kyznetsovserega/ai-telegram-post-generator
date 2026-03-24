@@ -1,18 +1,16 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 from app.models import NewsItem, NewsStatus
 from app.news_parser.sites import available_sites, collect_from_sites
 from app.services.source_service import SourceService
-from app.storage.news import JsonlNewsStorage
+from app.storage import get_news_storage
 
 
 class NewsService:
     """Сервис работы со сбором и хранением новостей."""
 
-    def __init__(self, storage_path: str | Path = "data/news.jsonl") -> None:
-        self.storage = JsonlNewsStorage(path=Path(storage_path))
+    def __init__(self) -> None:
+        self.storage = get_news_storage()
         self.source_service = SourceService()
 
     async def collect_from_sites(self, sites: list[str], limit_per_site: int) -> tuple[list[str], int, int]:

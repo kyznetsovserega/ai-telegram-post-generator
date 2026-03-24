@@ -5,7 +5,7 @@ from pathlib import Path
 from app.config import STORAGE_BACKEND
 
 from app.storage.keywords import JsonlKeywordStorage, RedisKeywordStorage
-from app.storage.news import JsonlNewsStorage
+from app.storage.news import RedisNewsStorage, JsonlNewsStorage
 from app.storage.posts import JsonlPostStorage, RedisPostStorage
 from app.storage.sources import JsonlSourceStorage, RedisSourceStorage
 
@@ -35,10 +35,11 @@ def get_storage_backend() -> str:
     return backend
 
 
-def get_news_storage():  # NEW
+def get_news_storage():
     backend = get_storage_backend()
 
-    # Redis не реализован
+    if backend == "redis":
+        return RedisNewsStorage()
 
     return JsonlNewsStorage(Path("data/news.jsonl"))
 

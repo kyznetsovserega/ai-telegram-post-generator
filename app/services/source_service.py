@@ -66,3 +66,23 @@ class SourceService:
         self.storage.save_many([item])
 
         return item
+
+    def delete_source(self, source_id: str) -> None:
+        """
+        Удаляет пользовательский источник.
+
+        Важно:
+        - встроенные catalog sources удалять нельзя
+        """
+        catalog_ids = {item.id for item in available_source_items()}
+
+        if source_id in catalog_ids:
+            raise ValueError(f"Built-in catalog source cannot be deleted: {source_id}")
+
+        sources = self.storage.list_all()
+        filtered_sources = [source for source in sources if source.id != source_id]
+
+        if len(filtered_sources) == len(sources):
+            raise LookupError(f"Source not found: {source_id}")
+
+        self.storage.write_all(filtered_sources)

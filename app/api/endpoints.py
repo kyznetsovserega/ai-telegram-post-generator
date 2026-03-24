@@ -115,6 +115,16 @@ async def update_source(source_id: str, payload: SourceUpdateRequest) -> SourceI
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
+@router.delete("/sources/{source_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_source(source_id: str) -> None:
+    try:
+        service = SourceService()
+        service.delete_source(source_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
 
 # GET /api/keywords
 @router.get("/keywords", response_model=KeywordListResponse)

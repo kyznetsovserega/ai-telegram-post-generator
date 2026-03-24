@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from app.models import PostItem
-from app.storage.posts import JsonlPostStorage
 from app.storage import get_post_storage
 
 

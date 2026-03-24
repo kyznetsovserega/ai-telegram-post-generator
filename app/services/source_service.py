@@ -44,3 +44,19 @@ class SourceService:
         self.storage.write_all(sources)
 
         return result
+
+    def create_source(self, item: SourceItem) -> SourceItem:
+        """
+        Добавляет новый источник.
+
+        - проверяем, что такого id ещё нет
+        - сохраняем в storage
+        """
+
+        existing = self.storage.get_by_id(item.id)
+        if existing:
+            raise ValueError(f"Source already exists: {item.id}")
+
+        self.storage.save_many([item])
+
+        return item

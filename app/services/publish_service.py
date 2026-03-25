@@ -114,8 +114,8 @@ class PublishService:
                         context={
                             "post_id": post.id,
                             "news_id": post.news_id,
-                            "reason": str,
-                            "exception_type":type(exc).__name__,
+                            "reason": str(exc),
+                            "exception_type": type(exc).__name__,
                         },
                     )
                 )

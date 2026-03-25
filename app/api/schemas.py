@@ -164,11 +164,6 @@ class KeywordListResponse(BaseModel):
 
 class KeywordCreateRequest(BaseModel):
     value: str = Field(min_length=1)
-    type: int
-
-
-class KeywordCreateRequest(BaseModel):
-    value: str = Field(min_length=1)
     type: str
 
     @field_validator("value")

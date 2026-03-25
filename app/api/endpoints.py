@@ -37,26 +37,73 @@ from app.services.log_service import LogService
 router = APIRouter()
 
 
-def _raise_for_ai_error(exc: Exception) -> NoReturn:
-    if isinstance(exc, RuntimeError):
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    if isinstance(exc, LookupError):
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    if isinstance(exc, AiRateLimitError):
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-    if isinstance(exc, AiTemporaryUnavailableError):
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-    if isinstance(exc, AiProviderResponseError):
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-    if isinstance(exc, ValueError):
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-    if isinstance(exc, AiGenerationError):
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-
+def _raise_api_error(
+   *,
+   status_code: int,
+   error_type: str,
+   message: str,
+) -> NoReturn:
+    # единая точка формирования ошибок API
     raise HTTPException(
+        status_code=status_code,
+        detail={
+            "type": error_type,
+            "message": message,
+        },
+    )
+
+
+def _raise_for_ai_error(exc: Exception) -> NoReturn:
+    # AI-ошибки приводим к одному формату,
+    # но сохраняем HTTP-статусы по смыслу
+    if isinstance(exc, RuntimeError):
+        _raise_api_error(
+            status_code=500,
+            error_type="RuntimeError",
+            message=str(exc),
+        )
+    if isinstance(exc, LookupError):
+        _raise_api_error(
+            status_code=404,
+            error_type="LookupError",
+            message=str(exc),
+        )
+    if isinstance(exc, AiRateLimitError):
+        _raise_api_error(
+            status_code=503,
+            error_type="AiRateLimitError",
+            message=str(exc),
+        )
+    if isinstance(exc, AiTemporaryUnavailableError):
+        _raise_api_error(
+            status_code=502,
+            error_type="AiTemporaryUnavailableError",
+            message=str(exc),
+        )
+    if isinstance(exc, AiProviderResponseError):
+        _raise_api_error(
+            status_code=502,
+            error_type="AiProviderResponseError",
+            message=str(exc),
+        )
+    if isinstance(exc, ValueError):
+        _raise_api_error(
+            status_code=502,
+            error_type="ValueError",
+            message=str(exc),
+        )
+    if isinstance(exc, AiGenerationError):
+        _raise_api_error(
+            status_code=502,
+            error_type="AiGenerationError",
+            message=str(exc),
+        )
+
+    _raise_api_error(
         status_code=502,
-        detail=f"LLM integration error: {type(exc).__name__}: {exc}",
-    ) from exc
+        error_type=type(exc).__name__,
+        message=f"LLM integration error: {type(exc).__name__}: {exc}",
+    )
 
 
 @router.get("/sources", response_model=SourceListResponse)
@@ -100,7 +147,11 @@ async def create_source(payload: SourceCreateRequest) -> SourceItemResponse:
             enabled=source.enabled,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        _raise_api_error(
+            status_code=400,
+            error_type="ValueError",
+            message=str(exc),
+        )
 
 
 @router.patch("/sources/{source_id}", response_model=SourceItemResponse)
@@ -122,7 +173,11 @@ async def update_source(source_id: str, payload: SourceUpdateRequest) -> SourceI
             enabled=source.enabled,
         )
     except LookupError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        _raise_api_error(
+            status_code=404,
+            error_type="LookupError",
+            message=str(exc),
+        )
 
 
 @router.delete("/sources/{source_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -131,12 +186,19 @@ async def delete_source(source_id: str) -> None:
         service = SourceService()
         service.delete_source(source_id)
     except LookupError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        _raise_api_error(
+            status_code=404,
+            error_type="LookupError",
+            message=str(exc),
+        )
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        _raise_api_error(
+            status_code=400,
+            error_type="ValueError",
+            message=str(exc),
+        )
 
 
-# GET /api/keywords
 @router.get("/keywords", response_model=KeywordListResponse)
 async def list_keywords() -> KeywordListResponse:
     service = KeywordService()
@@ -153,7 +215,6 @@ async def list_keywords() -> KeywordListResponse:
     return KeywordListResponse(items=items, total=len(items))
 
 
-# POST /api/keywords
 @router.post("/keywords", response_model=KeywordItemResponse, status_code=status.HTTP_201_CREATED)
 async def create_keyword(payload: KeywordCreateRequest) -> KeywordItemResponse:
     service = KeywordService()
@@ -168,13 +229,16 @@ async def create_keyword(payload: KeywordCreateRequest) -> KeywordItemResponse:
     )
 
 
-# DELETE /api/keywords/{keyword_type}/{value}
 @router.delete("/keywords/{keyword_type}/{value}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_keyword(keyword_type: str, value: str) -> None:
     try:
         normalized_type = keyword_type.strip().lower()
         if normalized_type not in {"include", "exclude"}:
-            raise HTTPException(status_code=422, detail="keyword_type must be include or exclude")
+            _raise_api_error(
+                status_code=422,
+                error_type="ValidationError",
+                message="keyword_type must be include or exclude",
+            )
 
         service = KeywordService()
         service.delete_keyword(
@@ -182,7 +246,11 @@ async def delete_keyword(keyword_type: str, value: str) -> None:
             value=value,
         )
     except LookupError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        _raise_api_error(
+            status_code=404,
+            error_type="LookupError",
+            message=str(exc),
+        )
 
 
 @router.post("/collect/sites", response_model=CollectSitesResponse)

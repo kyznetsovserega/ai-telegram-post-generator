@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import NoReturn
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 
 from app.ai.errors import (
     AiGenerationError,
@@ -20,6 +20,8 @@ from app.api.schemas import (
     KeywordCreateRequest,
     KeywordItemResponse,
     KeywordListResponse,
+    LogItemResponse,
+    LogListResponse,
     PostHistoryItemResponse,
     PostHistoryListResponse,
     SourceCreateRequest,
@@ -31,7 +33,6 @@ from app.models import KeywordType, SourceItem, SourceType
 from app.services import GenerationService, NewsService, PostService, KeywordService
 from app.services.source_service import SourceService
 from app.services.log_service import LogService
-from app.api.schemas import LogItemResponse, LogListResponse
 
 router = APIRouter()
 
@@ -262,9 +263,17 @@ async def generate_post_from_news(payload: GenerateFromNewsRequest) -> GenerateF
 
 
 @router.get("/logs", response_model=LogListResponse)
-async def list_logs() -> LogListResponse:
+async def list_logs(
+        level: str | None = Query(default=None),
+        source: str | None = Query(default=None),
+        limit: int | None = Query(default=None, ge=1, le=1000),
+) -> LogListResponse:
     service = LogService()
-    logs = service.list_all()
+    logs = service.list_filtered(
+        level=level,
+        source=source,
+        limit=limit,
+    )
 
     items = [
         LogItemResponse(

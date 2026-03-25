@@ -7,7 +7,8 @@ from uuid import uuid4
 from app import config
 from app.ai.factory import build_text_generation_client
 from app.ai.generator import PostGenerator
-from app.models import NewsItem, PostItem, PostStatus
+from app.models import LogItem, LogLevel, NewsItem, PostItem, PostStatus
+from app.services.log_service import LogService
 from app.storage import get_news_storage, get_post_storage
 
 
@@ -21,6 +22,7 @@ class GenerationService:
     ) -> None:
         self.news_storage = get_news_storage()
         self.post_storage = get_post_storage()
+        self.log_service = LogService()
 
     @staticmethod
     def ensure_provider_configured() -> str:
@@ -52,6 +54,18 @@ class GenerationService:
 
         existing_post = self.post_storage.get_by_news_id(news_item.id)
         if existing_post is not None:
+            self.log_service.add_log(
+                LogItem(
+                    level=LogLevel.INFO,
+                    message="Generation skipped because post already exists",
+                    source="generation_service",
+                    context={
+                        "news_id": news_item.id,
+                        "post_id": existing_post.id,
+                        "provider": existing_post.provider,
+                    },
+                )
+            )
             return existing_post
 
         client = build_text_generation_client()
@@ -60,6 +74,19 @@ class GenerationService:
 
         existing_text_post = self.post_storage.get_by_generated_text(generated_post.text)
         if existing_text_post is not None:
+            self.log_service.add_log(
+                LogItem(
+                    level=LogLevel.INFO,
+                    message="Generation skipped because duplicate generated text already exists",
+                    source="generation_service",
+                    context={
+                        "news_id": news_item.id,
+                        "existing_post_id": existing_text_post.id,
+                        "existing_news_id": existing_text_post.news_id,
+                        "provider": existing_text_post.provider,
+                    },
+                )
+            )
             return existing_text_post
 
         post_item = PostItem(
@@ -74,6 +101,20 @@ class GenerationService:
         )
 
         self.post_storage.save(post_item)
+
+        self.log_service.add_log(
+            LogItem(
+                level=LogLevel.INFO,
+                message="Post generated successfully",
+                source="generation_service",
+                context={
+                    "post_id": post_item.id,
+                    "news_id": news_item.id,
+                    "provider": provider,
+                    "news_source": news_item.source,
+                },
+            )
+        )
         return post_item
 
     async def generate_for_news_items(
@@ -101,17 +142,58 @@ class GenerationService:
             existing_post = self.post_storage.get_by_news_id(item.id)
             if existing_post is not None:
                 summary["skipped"] += 1
+
+                self.log_service.add_log(
+                    LogItem(
+                        level=LogLevel.INFO,
+                        message="Batch generation skipped because post already exists",
+                        source="generation_service",
+                        context={
+                            "news_id": item.id,
+                            "post_id": existing_post.id,
+                            "provider": existing_post.provider,
+                        },
+                    )
+                )
                 continue
 
             try:
                 post_item = await self.generate_from_news(item.id)
-            except Exception:
+            except Exception as exc:
                 summary["failed"] += 1
+
+                self.log_service.add_log(
+                    LogItem(
+                        level=LogLevel.ERROR,
+                        message="Batch generation failed",
+                        source="generation_service",
+                        context={
+                            "news_id": item.id,
+                            "news_source": item.source,
+                            "reason": str(exc),
+                            "exception_type": type(exc).__name__,
+                        },
+                    )
+                )
                 continue
 
             if post_item.news_id == item.id:
                 summary["generated"] += 1
             else:
                 summary["skipped"] += 1
+
+                self.log_service.add_log(
+                    LogItem(
+                        level=LogLevel.INFO,
+                        message="Batch generation skipped because another post was reused",
+                        source="generation_service",
+                        context={
+                            "requested_news_id": item.id,
+                            "returned_news_id": post_item.news_id,
+                            "post_id": post_item.id,
+                            "provider": post_item.provider,
+                        },
+                    )
+                )
 
         return summary

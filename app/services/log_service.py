@@ -13,5 +13,41 @@ class LogService:
     def list_all(self) -> list[LogItem]:
         return self.storage.list_all()
 
+    def list_filtered(
+            self,
+            level: str | None = None,
+            source: str | None = None,
+            limit: int | None = None,
+    ) -> list[LogItem]:
+        logs = self.storage.list_all()
+
+        # фильтр по уровню
+        if level is not None:
+            normalized_level = level.strip().lower()
+            logs = [
+                log
+                for log in logs
+                if str(log.level).lower() == normalized_level
+                   or getattr(log.level, "value", "").lower() == normalized_level
+            ]
+
+        # фильтр по source
+        if source is not None:
+            normalized_source = source.strip()
+            logs = [
+                log
+                for log in logs
+                if log.source == normalized_source
+            ]
+
+        # newest first
+        logs = sorted(logs, key=lambda item: item.created_at, reverse=True)
+
+        # limit
+        if limit is not None:
+            logs = logs[:limit]
+
+        return logs
+
     def add_log(self, item: LogItem) -> None:
         self.storage.save(item)

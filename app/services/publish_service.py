@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from app.models import PostItem, PostStatus, utc_now
+from app.models import LogItem, LogLevel, PostItem, PostStatus, utc_now
+from app.services.log_service import LogService
 from app.storage import get_post_storage
 from app.telegram.publisher import TelegramPublisher
 
@@ -14,6 +15,7 @@ class PublishService:
     ) -> None:
         self.post_storage = get_post_storage()
         self.publisher = publisher or TelegramPublisher()
+        self.log_service = LogService()
 
     def publish_generated_posts(self) -> dict:
         """
@@ -53,6 +55,20 @@ class PublishService:
                         )
                     )
                     published_ids.append(post.id)
+
+                    self.log_service.add_log(
+                        LogItem(
+                            level=LogLevel.INFO,
+                            message="Post published successfully",
+                            source="publish_service",
+                            context={
+                                "post_id": post.id,
+                                "news_id": post.news_id,
+                                "external_message_id": result.external_id,
+                            },
+                        )
+                    )
+
                 else:
                     updated_posts.append(
                         post.model_copy(update={"status": PostStatus.FAILED})
@@ -65,6 +81,19 @@ class PublishService:
                         }
                     )
 
+                    self.log_service.add_log(
+                        LogItem(
+                            level=LogLevel.ERROR,
+                            message="Post publish failed",
+                            source="publish_service",
+                            context={
+                                "post_id": post.id,
+                                "news_id": post.news_id,
+                                "reason": result.error_message,
+                            },
+                        )
+                    )
+
             except Exception as exc:
                 updated_posts.append(
                     post.model_copy(update={"status": PostStatus.FAILED})
@@ -75,6 +104,20 @@ class PublishService:
                         "post_id": post.id,
                         "reason": str(exc),
                     }
+                )
+
+                self.log_service.add_log(
+                    LogItem(
+                        level=LogLevel.ERROR,
+                        message="Post publish raised exception",
+                        source="publish_service",
+                        context={
+                            "post_id": post.id,
+                            "news_id": post.news_id,
+                            "reason": str,
+                            "exception_type":type(exc).__name__,
+                        },
+                    )
                 )
 
         updated_by_id = {post.id: post for post in updated_posts}

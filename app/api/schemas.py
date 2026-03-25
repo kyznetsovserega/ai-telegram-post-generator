@@ -205,3 +205,19 @@ class PostHistoryItemResponse(BaseModel):
 class PostHistoryListResponse(BaseModel):
     items: List[PostHistoryItemResponse]
     total: int
+
+
+# --- Logs ---
+
+class LogItemResponse(BaseModel):
+    id: str
+    created_at: datetime
+    level: str
+    message: str
+    source: Optional[str]
+    context: Optional[dict]
+
+
+class LogListResponse(BaseModel):
+    items: List[LogItemResponse]
+    total: int

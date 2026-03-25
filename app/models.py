@@ -102,3 +102,19 @@ class KeywordItem(BaseModel):
         if not normalized:
             raise ValueError("keyword value must not be empty")
         return normalized
+
+
+class LogLevel(str, Enum):
+    INFO = "info"
+    ERROR = "error"
+
+
+class LogItem(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid4()))
+    created_at: datetime = Field(default_factory=utc_now)
+
+    level: LogLevel
+    message: str
+
+    source: Optional[str] = None
+    context: Optional[dict[str, Any]] = None

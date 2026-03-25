@@ -8,16 +8,8 @@ from app.storage.keywords import JsonlKeywordStorage, RedisKeywordStorage
 from app.storage.news import RedisNewsStorage, JsonlNewsStorage
 from app.storage.posts import JsonlPostStorage, RedisPostStorage
 from app.storage.sources import JsonlSourceStorage, RedisSourceStorage
+from app.storage.logs import JsonlLogStorage, RedisLogStorage
 
-
-#
-# __all__ = [
-#    "JsonlKeywordStorage",
-#    "JsonlNewsStorage",
-#    "JsonlPostStorage",
-#    "JsonlSourceStorage"
-# ]
-#
 
 def get_storage_backend() -> str:
     """
@@ -69,3 +61,11 @@ def get_keyword_storage():
         return RedisKeywordStorage()
 
     return JsonlKeywordStorage()
+
+def get_log_storage():
+    backend = get_storage_backend()
+
+    if backend == "redis":
+        return RedisLogStorage()
+
+    return JsonlLogStorage()

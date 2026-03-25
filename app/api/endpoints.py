@@ -30,6 +30,8 @@ from app.api.schemas import (
 from app.models import KeywordType, SourceItem, SourceType
 from app.services import GenerationService, NewsService, PostService, KeywordService
 from app.services.source_service import SourceService
+from app.services.log_service import LogService
+from app.api.schemas import LogItemResponse, LogListResponse
 
 router = APIRouter()
 
@@ -73,6 +75,7 @@ async def list_sources() -> SourceListResponse:
     ]
 
     return SourceListResponse(items=items, total=len(items))
+
 
 @router.post("/sources", response_model=SourceItemResponse, status_code=status.HTTP_201_CREATED)
 async def create_source(payload: SourceCreateRequest) -> SourceItemResponse:
@@ -119,6 +122,7 @@ async def update_source(source_id: str, payload: SourceUpdateRequest) -> SourceI
         )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
 
 @router.delete("/sources/{source_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_source(source_id: str) -> None:
@@ -255,3 +259,23 @@ async def generate_post_from_news(payload: GenerateFromNewsRequest) -> GenerateF
         )
     except Exception as exc:
         _raise_for_ai_error(exc)
+
+
+@router.get("/logs", response_model=LogListResponse)
+async def list_logs() -> LogListResponse:
+    service = LogService()
+    logs = service.list_all()
+
+    items = [
+        LogItemResponse(
+            id=log.id,
+            created_at=log.created_at,
+            level=log.level,
+            message=log.message,
+            source=log.source,
+            context=log.context,
+        )
+        for log in logs
+    ]
+
+    return LogListResponse(items=items, total=len(items))

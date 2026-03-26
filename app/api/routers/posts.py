@@ -1,16 +1,18 @@
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from app.api.schemas import PostHistoryItemResponse, PostHistoryListResponse
 from app.services import PostService
+from app.api.dependencies.services import get_post_service
 
 router = APIRouter()
 
 
 @router.get("/posts", response_model=PostHistoryListResponse)
-async def list_generated_posts() -> PostHistoryListResponse:
-    service = PostService()
+async def list_generated_posts(
+        service: PostService = Depends(get_post_service),
+) -> PostHistoryListResponse:
     posts = service.list_all()
 
     items = [
@@ -29,4 +31,3 @@ async def list_generated_posts() -> PostHistoryListResponse:
     ]
 
     return PostHistoryListResponse(items=items, total=len(items))
-

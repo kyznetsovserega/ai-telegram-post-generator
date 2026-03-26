@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, status, Depends
 
+from app.api.dependencies.services import get_generation_service
 from app.api.errors import raise_for_ai_error
 from app.api.schemas import (
     GenerateFromNewsRequest,
@@ -15,9 +16,11 @@ router = APIRouter()
 
 
 @router.post("/generate/", response_model=GenerateResponse)
-async def generate_post(payload: GenerateRequest) -> GenerateResponse:
+async def generate_post(
+        payload: GenerateRequest,
+        service: GenerationService = Depends(get_generation_service),
+) -> GenerateResponse:
     try:
-        service = GenerationService()
         generated_text = await service.generate_from_text(payload.text)
         return GenerateResponse(generated_text=generated_text)
     except Exception as exc:
@@ -29,9 +32,11 @@ async def generate_post(payload: GenerateRequest) -> GenerateResponse:
     response_model=GenerateFromNewsResponse,
     status_code=status.HTTP_201_CREATED,
 )
-async def generate_post_from_news(payload: GenerateFromNewsRequest) -> GenerateFromNewsResponse:
+async def generate_post_from_news(
+        payload: GenerateFromNewsRequest,
+        service: GenerationService = Depends(get_generation_service),
+) -> GenerateFromNewsResponse:
     try:
-        service = GenerationService()
         post_item = await service.generate_from_news(payload.news_id)
 
         return GenerateFromNewsResponse(

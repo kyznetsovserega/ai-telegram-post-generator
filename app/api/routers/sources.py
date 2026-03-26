@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, status, Depends
 
 from app.api.errors import raise_api_error
 from app.api.schemas import (
@@ -11,13 +11,15 @@ from app.api.schemas import (
 )
 from app.models import SourceItem, SourceType
 from app.services.source_service import SourceService
+from app.api.dependencies.services import get_source_service
 
 router = APIRouter()
 
 
 @router.get("/sources", response_model=SourceListResponse)
-async def list_sources() -> SourceListResponse:
-    service = SourceService()
+async def list_sources(
+        service: SourceService = Depends(get_source_service),
+) -> SourceListResponse:
     sources = service.list_all()
 
     items = [
@@ -35,9 +37,11 @@ async def list_sources() -> SourceListResponse:
 
 
 @router.post("/sources", response_model=SourceItemResponse, status_code=status.HTTP_201_CREATED)
-async def create_source(payload: SourceCreateRequest) -> SourceItemResponse:
+async def create_source(
+        payload: SourceCreateRequest,
+        service: SourceService = Depends(get_source_service),
+) -> SourceItemResponse:
     try:
-        service = SourceService()
         source = service.create_source(
             SourceItem(
                 id=payload.id,
@@ -64,9 +68,12 @@ async def create_source(payload: SourceCreateRequest) -> SourceItemResponse:
 
 
 @router.patch("/sources/{source_id}", response_model=SourceItemResponse)
-async def update_source(source_id: str, payload: SourceUpdateRequest) -> SourceItemResponse:
+async def update_source(
+        source_id: str,
+        payload: SourceUpdateRequest,
+        service: SourceService = Depends(get_source_service),
+) -> SourceItemResponse:
     try:
-        service = SourceService()
         source = service.update_source(
             source_id=source_id,
             name=payload.name,
@@ -90,9 +97,11 @@ async def update_source(source_id: str, payload: SourceUpdateRequest) -> SourceI
 
 
 @router.delete("/sources/{source_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_source(source_id: str) -> None:
+async def delete_source(
+        source_id: str,
+        service: SourceService = Depends(get_source_service),
+) -> None:
     try:
-        service = SourceService()
         service.delete_source(source_id)
     except LookupError as exc:
         raise_api_error(

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, status, Depends
 
 from app.api.errors import raise_api_error
 from app.api.schemas import (
@@ -10,13 +10,15 @@ from app.api.schemas import (
 )
 from app.models import KeywordType
 from app.services import KeywordService
+from app.api.dependencies.services import get_keyword_service
 
 router = APIRouter()
 
 
 @router.get("/keywords", response_model=KeywordListResponse)
-async def list_keywords() -> KeywordListResponse:
-    service = KeywordService()
+async def list_keywords(
+        service: KeywordService = Depends(get_keyword_service),
+) -> KeywordListResponse:
     keywords = service.list_all()
 
     items = [
@@ -31,8 +33,10 @@ async def list_keywords() -> KeywordListResponse:
 
 
 @router.post("/keywords", response_model=KeywordItemResponse, status_code=status.HTTP_201_CREATED)
-async def create_keyword(payload: KeywordCreateRequest) -> KeywordItemResponse:
-    service = KeywordService()
+async def create_keyword(
+        payload: KeywordCreateRequest,
+        service: KeywordService = Depends(get_keyword_service),
+) -> KeywordItemResponse:
     keyword = service.add_keyword(
         keyword_type=KeywordType(payload.type),
         value=payload.value,
@@ -45,7 +49,11 @@ async def create_keyword(payload: KeywordCreateRequest) -> KeywordItemResponse:
 
 
 @router.delete("/keywords/{keyword_type}/{value}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_keyword(keyword_type: str, value: str) -> None:
+async def delete_keyword(
+        keyword_type: str,
+        value: str,
+        service: KeywordService = Depends(get_keyword_service),
+) -> None:
     try:
         normalized_type = keyword_type.strip().lower()
         if normalized_type not in {"include", "exclude"}:
@@ -55,7 +63,6 @@ async def delete_keyword(keyword_type: str, value: str) -> None:
                 message="keyword_type must be include or exclude",
             )
 
-        service = KeywordService()
         service.delete_keyword(
             keyword_type=KeywordType(normalized_type),
             value=value,

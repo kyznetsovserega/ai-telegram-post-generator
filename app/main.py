@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.api.endpoints import router as api_router
+from app.api.routers import router as api_router
 
 
 def create_app() -> FastAPI:
@@ -45,7 +45,7 @@ def create_app() -> FastAPI:
         request: Request,
         exc: RequestValidationError,
     ) -> JSONResponse:
-        # ошибки входной валидации тоже держим в одном контракте ответа
+        # ошибки входной валидации держим в одном контракте ответа
         return JSONResponse(
             status_code=422,
             content={

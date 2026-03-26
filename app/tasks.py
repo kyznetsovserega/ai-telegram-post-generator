@@ -5,17 +5,20 @@ import asyncio
 from celery import Celery, chain
 from celery.schedules import crontab
 
+from app.api.dependencies.services import (
+    get_filter_service,
+    get_generation_service,
+    get_log_service,
+    get_news_service,
+    get_publish_service,
+)
+
 from app.config import (
     CELERY_BROKER_URL,
     CELERY_RESULT_BACKEND,
     COLLECT_SITES_DEFAULT,
 )
 from app.models import LogItem, LogLevel, NewsStatus
-from app.services.filter_service import FilterService
-from app.services.generation_service import GenerationService
-from app.services.log_service import LogService
-from app.services.news_service import NewsService
-from app.services.publish_service import PublishService
 
 celery_app = Celery(
     "ai_tg_post_generator",
@@ -51,17 +54,16 @@ def collect_sites_task() -> dict:
     """
     Celery task для сбора новостей напрямую через service layer.
     """
-    log_service = LogService()
+    log_service = get_log_service()
+    news_service = get_news_service()
 
     requested_sites = [
         site.strip()
         for site in COLLECT_SITES_DEFAULT.split(",")
         if site.strip()]
 
-    service = NewsService()
-
     processed_sites, collected, saved = asyncio.run(
-        service.collect_from_sites(
+        news_service.collect_from_sites(
             sites=requested_sites,
             limit_per_site=3,
         )
@@ -91,10 +93,11 @@ def filter_news_task(previous_result: dict | None = None) -> dict:
     """
     Фильтрация только новых новостей с изменением их статуса.
     """
-    log_service = LogService()
+    _ = previous_result
 
-    news_service = NewsService()
-    filter_service = FilterService()
+    log_service = get_log_service()
+    news_service = get_news_service()
+    filter_service = get_filter_service()
 
     all_items = news_service.list_all()
     new_items = [item for item in all_items if item.status == NewsStatus.NEW]
@@ -137,10 +140,11 @@ def generate_posts_task(previous_result: dict | None = None) -> dict:
     Генерация постов только для news со статусом FILTERED.
     После успешной генерации news помечается как GENERATED.
     """
-    log_service = LogService()
+    _ = previous_result
 
-    news_service = NewsService()
-    generation_service = GenerationService()
+    log_service = get_log_service()
+    news_service = get_news_service()
+    generation_service = get_generation_service()
 
     all_items = news_service.list_all()
     filtered_items = [
@@ -183,9 +187,10 @@ def publish_posts_task(previous_result: dict | None = None) -> dict:
     """
     Публикация постов, уже сгенерированных AI.
     """
-    log_service = LogService()
+    _ = previous_result
 
-    publish_service = PublishService()
+    log_service = get_log_service()
+    publish_service = get_publish_service()
     result = publish_service.publish_generated_posts()
 
     log_service.add_log(
@@ -206,7 +211,7 @@ def pipeline_chain_task() -> str:
     Orchestration через Celery chain:
     collect -> filter -> generate -> publish
     """
-    log_service = LogService()
+    log_service = get_log_service()
 
     workflow = chain(
         collect_sites_task.s(),
@@ -232,7 +237,7 @@ def collect_filter_generate_posts_task() -> dict:
     """
     Временная legacy-версия pipeline без chain.
     """
-    log_service = LogService()
+    log_service = get_log_service()
 
     collect_result = collect_sites_task()
     filter_result = filter_news_task()

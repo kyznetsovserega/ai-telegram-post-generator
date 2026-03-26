@@ -16,12 +16,15 @@ class JsonlPostStorage:
         self.file_path.parent.mkdir(parents=True, exist_ok=True)
 
     def save(self, post: PostItem) -> None:
-        """ Добавление сгенерированного сообщения в файл JSONL. """
+        """
+        Добавление нового поста в файл JSONL.
+        Метод используется как append для новых постов.
+        """
         with self.file_path.open("a", encoding="utf-8") as file:
             file.write(post.model_dump_json() + "\n")
 
     def list_all(self) -> list[PostItem]:
-        """ Возврат всех сохраненных новостей. """
+        """Возвращает все сохранённые посты."""
         if not self.file_path.exists():
             return []
 
@@ -39,7 +42,7 @@ class JsonlPostStorage:
         return result
 
     def get_by_id(self, news_id: str) -> Optional[PostItem]:
-        """ Вернуть новость по ее id. """
+        """Возвращает пост по его id."""
         for item in self.list_all():
             if item.id == news_id:
                 return item
@@ -62,18 +65,36 @@ class JsonlPostStorage:
         return None
 
     def list_publishable(self) -> list[PostItem]:
-        """ Возвращает только посты , готовые к публикации."""
+        """ Возвращает только посты, готовые к публикации."""
         return [
             item for item in self.list_all()
             if item.status == PostStatus.GENERATED and item.published_at is None
         ]
 
+    def update(self, post: PostItem) -> None:
+        """
+        Обновляет существующий пост по id.
+        """
+        items = self.list_all()
+
+        updated = False
+        result: list[PostItem] = []
+
+        for item in items:
+            if item.id == post.id:
+                result.append(post)
+                updated = True
+            else:
+                result.append(item)
+
+        if not updated:
+            raise LookupError(f"Post not found: {post.id}")
+
+        self.write_all(result)
+
     def write_all(self, items: Iterable[PostItem]) -> None:
         """
         Полностью перезаписывает JSONL-файл постов.
-
-        Используется pipeline'ом, чтобы обновлять статусы постов
-        после publish-stage.
         """
         items_list = list(items)
 
@@ -96,6 +117,9 @@ class RedisPostStorage:
         return f"{cls.ITEM_KEY_PREFIX}{post_id}"
 
     def save(self, post: PostItem) -> None:
+        """
+        Сохраняет новый пост или перезаписывает существующий по тому же id.
+        """
         pipeline = self.redis.pipeline()
         pipeline.set(self._item_key(post.id), post.model_dump_json())
         pipeline.sadd(self.IDS_KEY, post.id)
@@ -146,6 +170,16 @@ class RedisPostStorage:
             item for item in self.list_all()
             if item.status == PostStatus.GENERATED and item.published_at is None
         ]
+
+    def update(self, post: PostItem) -> None:
+        """
+        Обновляет существующий пост по id.
+        """
+        existing = self.get_by_id(post.id)
+        if existing is None:
+            raise LookupError(f"Post not found: {post.id}")
+
+        self.save(post)
 
     def write_all(self, items: Iterable[PostItem]) -> None:
         items_list = list(items)

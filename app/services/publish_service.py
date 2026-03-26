@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.models import LogItem, LogLevel, PostItem, PostStatus, utc_now
+from app.models import LogItem, LogLevel, PostStatus, utc_now
 from app.services.log_service import LogService
 
 
@@ -21,21 +21,20 @@ class PublishService:
         """
         Публикуем только еще не опубликованные посты.
         """
-        all_posts = self.post_storage.list_all()
         publishable_posts = self.post_storage.list_publishable()
+        total_posts = len(self.post_storage.list_all())
 
         if not publishable_posts:
             return {
                 "total": 0,
                 "published": 0,
-                "skipped": 0,
+                "skipped": total_posts,
                 "failed": 0,
                 "published_post_ids": [],
                 "failed_post_ids": [],
                 "errors": [],
             }
 
-        updated_posts: list[PostItem] = []
         published_ids: list[str] = []
         failed_ids: list[str] = []
         errors: list[dict[str, str]] = []
@@ -45,15 +44,16 @@ class PublishService:
                 result = self.publisher.publish_post(post.generated_text)
 
                 if result.is_published:
-                    updated_posts.append(
-                        post.model_copy(
-                            update={
-                                "status": PostStatus.PUBLISHED,
-                                "published_at": utc_now(),
-                                "external_message_id": result.external_id,
-                            }
-                        )
+                    updated_post = post.model_copy(
+                        update={
+                            "status": PostStatus.PUBLISHED,
+                            "published_at": utc_now(),
+                            "external_message_id": result.external_id,
+                        }
                     )
+
+                    # точечно обновляем только этот пост
+                    self.post_storage.update(updated_post)
                     published_ids.append(post.id)
 
                     self.log_service.add_log(
@@ -68,11 +68,13 @@ class PublishService:
                             },
                         )
                     )
-
                 else:
-                    updated_posts.append(
-                        post.model_copy(update={"status": PostStatus.FAILED})
+                    failed_post = post.model_copy(
+                        update={"status": PostStatus.FAILED}
                     )
+
+                    # точечно обновляем только этот пост
+                    self.post_storage.update(failed_post)
                     failed_ids.append(post.id)
                     errors.append(
                         {
@@ -95,9 +97,12 @@ class PublishService:
                     )
 
             except Exception as exc:
-                updated_posts.append(
-                    post.model_copy(update={"status": PostStatus.FAILED})
+                failed_post = post.model_copy(
+                    update={"status": PostStatus.FAILED}
                 )
+
+                # при exception фиксируем failed точечно
+                self.post_storage.update(failed_post)
                 failed_ids.append(post.id)
                 errors.append(
                     {
@@ -120,19 +125,10 @@ class PublishService:
                     )
                 )
 
-        updated_by_id = {post.id: post for post in updated_posts}
-
-        final_posts = [
-            updated_by_id.get(post.id, post)
-            for post in all_posts
-        ]
-
-        self.post_storage.write_all(final_posts)
-
         return {
             "total": len(publishable_posts),
             "published": len(published_ids),
-            "skipped": 0,
+            "skipped": total_posts - len(publishable_posts),
             "failed": len(failed_ids),
             "published_post_ids": published_ids,
             "failed_post_ids": failed_ids,

@@ -19,12 +19,12 @@ def create_app() -> FastAPI:
         """Простейший эндпоинт для проверки сервиса."""
         return {"status": "ok"}
 
-
     @app.exception_handler(StarletteHTTPException)
     async def http_exception_handler(
-        request: Request,
-        exc: StarletteHTTPException
+            request: Request,
+            exc: StarletteHTTPException
     ) -> JSONResponse:
+        _ = request
         # локальные HTTPException из API приводим к единому error payload
         if isinstance(exc.detail, dict) and "type" in exc.detail and "message" in exc.detail:
             error_payload = exc.detail
@@ -39,12 +39,12 @@ def create_app() -> FastAPI:
             content={"error": error_payload},
         )
 
-
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(
-        request: Request,
-        exc: RequestValidationError,
+            request: Request,
+            exc: RequestValidationError,
     ) -> JSONResponse:
+        _ = request
         # ошибки входной валидации держим в одном контракте ответа
         return JSONResponse(
             status_code=422,

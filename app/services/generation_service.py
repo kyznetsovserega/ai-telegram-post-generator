@@ -9,7 +9,6 @@ from app.ai.factory import build_text_generation_client
 from app.ai.generator import PostGenerator
 from app.models import LogItem, LogLevel, NewsItem, PostItem, PostStatus
 from app.services.log_service import LogService
-from app.storage import get_news_storage, get_post_storage
 
 GeneratorFactory = Callable[[], PostGenerator]
 
@@ -30,9 +29,9 @@ class GenerationService:
             log_service: LogService | None = None,
             generator_factory: GeneratorFactory = build_post_generator,
     ) -> None:
-        self.news_storage = news_storage or get_news_storage()
-        self.post_storage = post_storage or get_post_storage()
-        self.log_service = log_service or LogService()
+        self.news_storage = news_storage
+        self.post_storage = post_storage
+        self.log_service = log_service
         self.generator_factory = generator_factory
 
     @staticmethod

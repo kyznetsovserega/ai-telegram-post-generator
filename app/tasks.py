@@ -5,19 +5,12 @@ import asyncio
 from celery import Celery, chain
 from celery.schedules import crontab
 
-from app.api.dependencies.services import (
-    get_filter_service,
-    get_generation_service,
-    get_log_service,
-    get_news_service,
-    get_publish_service,
-)
-
 from app.config import (
     CELERY_BROKER_URL,
     CELERY_RESULT_BACKEND,
     COLLECT_SITES_DEFAULT,
 )
+from app.core.container import get_container
 from app.models import LogItem, LogLevel, NewsStatus
 
 celery_app = Celery(
@@ -54,8 +47,9 @@ def collect_sites_task() -> dict:
     """
     Celery task для сбора новостей напрямую через service layer.
     """
-    log_service = get_log_service()
-    news_service = get_news_service()
+    container = get_container()
+    log_service = container.log_service
+    news_service = container.news_service
 
     requested_sites = [
         site.strip()
@@ -95,9 +89,10 @@ def filter_news_task(previous_result: dict | None = None) -> dict:
     """
     _ = previous_result
 
-    log_service = get_log_service()
-    news_service = get_news_service()
-    filter_service = get_filter_service()
+    container = get_container()
+    log_service = container.log_service
+    news_service = container.news_service
+    filter_service = container.filter_service
 
     all_items = news_service.list_all()
     new_items = [item for item in all_items if item.status == NewsStatus.NEW]
@@ -114,7 +109,7 @@ def filter_news_task(previous_result: dict | None = None) -> dict:
         for item in all_items
     ]
 
-    news_service.replace_all(updated_items)
+    news_service.update_items(updated_items)
 
     result = {
         "total": len(new_items),
@@ -142,9 +137,11 @@ def generate_posts_task(previous_result: dict | None = None) -> dict:
     """
     _ = previous_result
 
-    log_service = get_log_service()
-    news_service = get_news_service()
-    generation_service = get_generation_service()
+    container = get_container()
+    log_service = container.log_service
+    news_service = container.news_service
+    generation_service = container.generation_service
+    post_service = container.post_service
 
     all_items = news_service.list_all()
     filtered_items = [
@@ -156,7 +153,7 @@ def generate_posts_task(previous_result: dict | None = None) -> dict:
     )
 
     # читаем все созданные посты
-    posts = generation_service.post_storage.list_all()
+    posts = post_service.list_all()
     generated_news_ids = {post.news_id for post in posts}
 
     updated_items: list = []
@@ -189,9 +186,11 @@ def publish_posts_task(previous_result: dict | None = None) -> dict:
     """
     _ = previous_result
 
-    log_service = get_log_service()
-    publish_service = get_publish_service()
-    result = publish_service.publish_generated_posts()
+    container = get_container()
+    log_service = container.log_service
+    publish_service = container.publish_service
+
+    result = publish_service.publish_generated_posts
 
     log_service.add_log(
         LogItem(
@@ -211,7 +210,9 @@ def pipeline_chain_task() -> str:
     Orchestration через Celery chain:
     collect -> filter -> generate -> publish
     """
-    log_service = get_log_service()
+
+    container = get_container()
+    log_service = container.log_service
 
     workflow = chain(
         collect_sites_task.s(),
@@ -237,7 +238,8 @@ def collect_filter_generate_posts_task() -> dict:
     """
     Временная legacy-версия pipeline без chain.
     """
-    log_service = get_log_service()
+    container = get_container()
+    log_service = container.log_service
 
     collect_result = collect_sites_task()
     filter_result = filter_news_task()

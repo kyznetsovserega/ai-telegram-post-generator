@@ -1,21 +1,32 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
+from app.models import KeywordType, LogLevel, PostStatus, SourceType
+
+
+class ErrorPayload(BaseModel):
+    type: str
+    message: str
+    details: list[dict[str, Any]] | None = None
+
+
+class ErrorResponse(BaseModel):
+    error: ErrorPayload
 
 
 # --- Collect ---
 
 class CollectSitesRequest(BaseModel):
-    sites: List[str] = Field(default_factory=lambda: ["habr"])
+    sites: list[str] = Field(default_factory=lambda: ["habr"])
     limit_per_site: int = Field(default=20, ge=1, le=100)
 
 
 class CollectSitesResponse(BaseModel):
-    requested_sites: List[str]
-    processed_sites: List[str]
+    requested_sites: list[str]
+    processed_sites: list[str]
     collected: int
     saved: int
 
@@ -55,12 +66,12 @@ class GenerateFromNewsResponse(BaseModel):
     id: str
     news_id: str
     generated_text: str
-    status: str
+    status: PostStatus
     created_at: datetime
-    published_at: Optional[datetime]
+    published_at: datetime | None
     source: str
     provider: str
-    external_message_id: Optional[str]
+    external_message_id: datetime | None
 
 
 # --- Sources ---
@@ -69,7 +80,7 @@ class SourceItemResponse(BaseModel):
     id: str
     type: str
     name: str
-    url: Optional[str]
+    url: str | None
     enabled: bool
 
 
@@ -77,7 +88,7 @@ class SourceCreateRequest(BaseModel):
     id: str = Field(min_length=1)
     type: str
     name: str = Field(min_length=1)
-    url: Optional[str] = None
+    url: str | None = None
     enabled: bool = True
 
     @field_validator("id")
@@ -106,7 +117,7 @@ class SourceCreateRequest(BaseModel):
 
     @field_validator("url")
     @classmethod
-    def validate_url(cls, value: Optional[str]) -> Optional[str]:
+    def validate_url(cls, value: str | None) -> str | None:
         if value is None:
             return None
 
@@ -117,18 +128,18 @@ class SourceCreateRequest(BaseModel):
 
 
 class SourceListResponse(BaseModel):
-    items: List[SourceItemResponse]
+    items: list[SourceItemResponse]
     total: int
 
 
 class SourceUpdateRequest(BaseModel):
-    name: Optional[str] = None
-    url: Optional[str] = None
-    enabled: Optional[bool] = None
+    name: str | None = None
+    url: str | None = None
+    enabled: bool | None = None
 
     @field_validator("name")
     @classmethod
-    def validate_name(cls, value: Optional[str]) -> Optional[str]:
+    def validate_name(cls, value: str | None) -> str | None:
         if value is None:
             return value
 
@@ -140,7 +151,7 @@ class SourceUpdateRequest(BaseModel):
 
     @field_validator("url")
     @classmethod
-    def validate_url(cls, value: Optional[str]) -> Optional[str]:
+    def validate_url(cls, value: str | None) -> str | None:
         if value is None:
             return None
 
@@ -158,7 +169,7 @@ class KeywordItemResponse(BaseModel):
 
 
 class KeywordListResponse(BaseModel):
-    items: List[KeywordItemResponse]
+    items: list[KeywordItemResponse]
     total: int
 
 
@@ -191,14 +202,14 @@ class PostHistoryItemResponse(BaseModel):
     generated_text: str
     status: str
     created_at: datetime
-    published_at: Optional[datetime]
+    published_at: datetime | None
     source: str
     provider: str
-    external_message_id: Optional[str]
+    external_message_id: str | None
 
 
 class PostHistoryListResponse(BaseModel):
-    items: List[PostHistoryItemResponse]
+    items: list[PostHistoryItemResponse]
     total: int
 
 
@@ -207,12 +218,12 @@ class PostHistoryListResponse(BaseModel):
 class LogItemResponse(BaseModel):
     id: str
     created_at: datetime
-    level: str
+    level: LogLevel
     message: str
-    source: Optional[str]
-    context: Optional[dict]
+    source: str | None
+    context: dict[str, Any] | None
 
 
 class LogListResponse(BaseModel):
-    items: List[LogItemResponse]
+    items: list[LogItemResponse]
     total: int

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime, timezone
-from pathlib import Path
 from uuid import uuid4
 
 from app import config
@@ -11,18 +11,29 @@ from app.models import LogItem, LogLevel, NewsItem, PostItem, PostStatus
 from app.services.log_service import LogService
 from app.storage import get_news_storage, get_post_storage
 
+GeneratorFactory = Callable[[], PostGenerator]
+
+
+def build_post_generator() -> PostGenerator:
+    """Создаёт генератор постов с текущим LLM client."""
+    client = build_text_generation_client()
+    return PostGenerator(client=client)
+
 
 class GenerationService:
     """Сервис генерации Telegram-постов."""
 
     def __init__(
             self,
-            news_storage_path: str | Path = "data/news.jsonl",
-            post_storage_path: str | Path = "data/posts.jsonl",
+            news_storage=None,
+            post_storage=None,
+            log_service: LogService | None = None,
+            generator_factory: GeneratorFactory = build_post_generator,
     ) -> None:
-        self.news_storage = get_news_storage()
-        self.post_storage = get_post_storage()
-        self.log_service = LogService()
+        self.news_storage = news_storage or get_news_storage()
+        self.post_storage = post_storage or get_post_storage()
+        self.log_service = log_service or LogService()
+        self.generator_factory = generator_factory
 
     @staticmethod
     def ensure_provider_configured() -> str:
@@ -39,10 +50,8 @@ class GenerationService:
     async def generate_from_text(self, text: str) -> str:
         self.ensure_provider_configured()
 
-        client = build_text_generation_client()
-        generator = PostGenerator(client=client)
+        generator = self.generator_factory()
         post = await generator.generate_from_text(text)
-
         return post.text
 
     async def generate_from_news(self, news_id: str) -> PostItem:
@@ -68,8 +77,7 @@ class GenerationService:
             )
             return existing_post
 
-        client = build_text_generation_client()
-        generator = PostGenerator(client=client)
+        generator = self.generator_factory()
         generated_post = await generator.generate_from_news(news_item)
 
         existing_text_post = self.post_storage.get_by_generated_text(generated_post.text)

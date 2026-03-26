@@ -1,15 +1,18 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from app.models import SourceItem, SourceType
-from app.news_parser.sites import available_source_items
-from app.storage import get_source_storage
+
+AvailableSourceItemsProvider = Callable[[], list[SourceItem]]
 
 
 class SourceService:
     """ Сервис управления источниками. """
 
-    def __init__(self) -> None:
-        self.storage = get_source_storage()
+    def __init__(self, storage, available_source_items_provider):
+        self.storage = storage
+        self.available_source_items_provider = available_source_items_provider
 
     def list_all(self) -> list[SourceItem]:
         """
@@ -19,31 +22,21 @@ class SourceService:
         - добавляем отсутствующие в storage
         - возвращаем итоговый список из storage
         """
-        catalog_sources = available_source_items()
-
+        catalog_sources = self.available_source_items_provider()
         self.storage.save_many(catalog_sources)
-
         return self.storage.list_all()
 
     def set_enabled(self, source_id: str, enabled: bool) -> SourceItem:
         """ Изменяем состояние источников. """
         sources = self.list_all()
 
-        updated = False
-        result: SourceItem | None = None
-
-        for source in sources:
-            if source.id == source_id:
-                source.enabled = enabled
-                updated = True
-                result = source
-                break
-        if not updated or result is None:
+        target = next((source for source in sources if source.id == source_id), None)
+        if target is None:
             raise LookupError(f"Source not found: {source_id}")
 
+        target.enabled = enabled
         self.storage.write_all(sources)
-
-        return result
+        return target
 
     def create_source(self, item: SourceItem) -> SourceItem:
         """
@@ -64,7 +57,6 @@ class SourceService:
             raise ValueError(f"Source already exists: {item.id}")
 
         self.storage.save_many([item])
-
         return item
 
     def delete_source(self, source_id: str) -> None:
@@ -74,7 +66,7 @@ class SourceService:
         Важно:
         - встроенные catalog sources удалять нельзя
         """
-        catalog_ids = {item.id for item in available_source_items()}
+        catalog_ids = {item.id for item in self.available_source_items_provider()}
 
         if source_id in catalog_ids:
             raise ValueError(f"Built-in catalog source cannot be deleted: {source_id}")
@@ -100,13 +92,7 @@ class SourceService:
 
         sources = self.list_all()
 
-        target: SourceItem | None = None
-
-        for source in sources:
-            if source.id == source_id:
-                target = source
-                break
-
+        target = next((source for source in sources if source.id == source_id), None)
         if target is None:
             raise LookupError(f"Source not found: {source_id}")
 

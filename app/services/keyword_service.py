@@ -1,15 +1,30 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from app.config import FILTER_EXCLUDE_KEYWORDS, FILTER_INCLUDE_KEYWORDS
 from app.models import KeywordItem, KeywordType
-from app.storage import get_keyword_storage
+
+DefaultKeywordsProvider = Callable[[], list[KeywordItem]]
+
+
+def build_default_keywords() -> list[KeywordItem]:
+    """Собирает стартовый набор keywords из конфигурации."""
+    return [
+        KeywordItem(value=value, type=KeywordType.INCLUDE)
+        for value in FILTER_INCLUDE_KEYWORDS
+    ] + [
+        KeywordItem(value=value, type=KeywordType.EXCLUDE)
+        for value in FILTER_EXCLUDE_KEYWORDS
+    ]
 
 
 class KeywordService:
     """ Сервис управления keyword-фильтрами. """
 
-    def __init__(self) -> None:
-        self.storage = get_keyword_storage()
+    def __init__(self, storage, default_keywords_provider=build_default_keywords):
+        self.storage = storage
+        self.default_keywords_provider = default_keywords_provider
 
     def list_all(self) -> list[KeywordItem]:
         """
@@ -18,16 +33,8 @@ class KeywordService:
         значениями из config.py.
         """
 
-        default_items = [
-                            KeywordItem(value=value, type=KeywordType.INCLUDE)
-                            for value in FILTER_INCLUDE_KEYWORDS
-                        ] + [
-                            KeywordItem(value=value, type=KeywordType.EXCLUDE)
-                            for value in FILTER_EXCLUDE_KEYWORDS
-                        ]
-
+        default_items = self.default_keywords_provider()
         self.storage.save_many(default_items)
-
         return self.storage.list_all()
 
     def list_by_type(self, keyword_type: KeywordType) -> list[KeywordItem]:

@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from app.models import LogItem, LogLevel, PostItem, PostStatus, utc_now
 from app.services.log_service import LogService
-from app.storage import get_post_storage
-from app.telegram.publisher import TelegramPublisher
 
 
 class PublishService:
@@ -11,11 +9,13 @@ class PublishService:
 
     def __init__(
             self,
-            publisher: TelegramPublisher | None = None,
-    ) -> None:
-        self.post_storage = get_post_storage()
-        self.publisher = publisher or TelegramPublisher()
-        self.log_service = LogService()
+            post_storage,
+            publisher,
+            log_service: LogService,
+    ):
+        self.post_storage = post_storage
+        self.publisher = publisher
+        self.log_service = log_service
 
     def publish_generated_posts(self) -> dict:
         """

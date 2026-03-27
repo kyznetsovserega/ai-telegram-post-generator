@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, status, Depends
+from fastapi import APIRouter, Depends, status
 
+from app.api.dependencies.services import get_source_service
 from app.api.errors import raise_api_error
 from app.api.schemas import (
+    ErrorResponse,
     SourceCreateRequest,
     SourceItemResponse,
     SourceListResponse,
@@ -11,14 +13,21 @@ from app.api.schemas import (
 )
 from app.models import SourceItem, SourceType
 from app.services.source_service import SourceService
-from app.api.dependencies.services import get_source_service
 
 router = APIRouter()
 
 
-@router.get("/sources", response_model=SourceListResponse)
+@router.get(
+    "/sources",
+    response_model=SourceListResponse,
+    summary="List sources",
+    description="Returns all configured news sources available for collection.",
+    responses={
+        200: {"description": "Sources returned successfully"},
+    },
+)
 async def list_sources(
-        service: SourceService = Depends(get_source_service),
+    service: SourceService = Depends(get_source_service),
 ) -> SourceListResponse:
     sources = service.list_all()
 
@@ -36,10 +45,27 @@ async def list_sources(
     return SourceListResponse(items=items, total=len(items))
 
 
-@router.post("/sources", response_model=SourceItemResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/sources",
+    response_model=SourceItemResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create source",
+    description="Creates a custom source for news collection.",
+    responses={
+        201: {"description": "Source created successfully"},
+        400: {
+            "description": "Invalid source payload",
+            "model": ErrorResponse,
+        },
+        422: {
+            "description": "Validation error",
+            "model": ErrorResponse,
+        },
+    },
+)
 async def create_source(
-        payload: SourceCreateRequest,
-        service: SourceService = Depends(get_source_service),
+    payload: SourceCreateRequest,
+    service: SourceService = Depends(get_source_service),
 ) -> SourceItemResponse:
     try:
         source = service.create_source(
@@ -67,11 +93,27 @@ async def create_source(
         )
 
 
-@router.patch("/sources/{source_id}", response_model=SourceItemResponse)
+@router.patch(
+    "/sources/{source_id}",
+    response_model=SourceItemResponse,
+    summary="Update source",
+    description="Updates source metadata or enabled status.",
+    responses={
+        200: {"description": "Source updated successfully"},
+        404: {
+            "description": "Source not found",
+            "model": ErrorResponse,
+        },
+        422: {
+            "description": "Validation error",
+            "model": ErrorResponse,
+        },
+    },
+)
 async def update_source(
-        source_id: str,
-        payload: SourceUpdateRequest,
-        service: SourceService = Depends(get_source_service),
+    source_id: str,
+    payload: SourceUpdateRequest,
+    service: SourceService = Depends(get_source_service),
 ) -> SourceItemResponse:
     try:
         source = service.update_source(
@@ -96,10 +138,26 @@ async def update_source(
         )
 
 
-@router.delete("/sources/{source_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/sources/{source_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete source",
+    description="Deletes a custom source.",
+    responses={
+        204: {"description": "Source deleted successfully"},
+        400: {
+            "description": "Built-in source cannot be deleted",
+            "model": ErrorResponse,
+        },
+        404: {
+            "description": "Source not found",
+            "model": ErrorResponse,
+        },
+    },
+)
 async def delete_source(
-        source_id: str,
-        service: SourceService = Depends(get_source_service),
+    source_id: str,
+    service: SourceService = Depends(get_source_service),
 ) -> None:
     try:
         service.delete_source(source_id)

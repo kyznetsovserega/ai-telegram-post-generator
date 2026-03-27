@@ -2,10 +2,23 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Protocol
 
 from app.models import LogItem
 from app.storage.redis_client import get_redis_client
+
+
+class LogStorageProtocol(Protocol):
+    """Контракт хранилища логов."""
+
+    def save(self, item: LogItem) -> None:
+        ...
+
+    def save_many(self, items: Iterable[LogItem]) -> int:
+        ...
+
+    def list_all(self) -> list[LogItem]:
+        ...
 
 
 class JsonlLogStorage:

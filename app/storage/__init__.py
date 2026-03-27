@@ -8,7 +8,7 @@ from app.storage.keywords import JsonlKeywordStorage, RedisKeywordStorage
 from app.storage.news import RedisNewsStorage, JsonlNewsStorage
 from app.storage.posts import JsonlPostStorage, RedisPostStorage
 from app.storage.sources import JsonlSourceStorage, RedisSourceStorage
-from app.storage.logs import JsonlLogStorage, RedisLogStorage
+from app.storage.logs import JsonlLogStorage, RedisLogStorage, LogStorageProtocol
 
 
 def get_storage_backend() -> str:
@@ -62,7 +62,8 @@ def get_keyword_storage():
 
     return JsonlKeywordStorage()
 
-def get_log_storage():
+def get_log_storage() -> LogStorageProtocol:
+    """Возвращает реализацию log storage по активному backend."""
     backend = get_storage_backend()
 
     if backend == "redis":

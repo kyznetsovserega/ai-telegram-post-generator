@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, field_validator
 from app.models import KeywordType, LogLevel, PostStatus, SourceType
 
 
+# --- Error ---
 class ErrorPayload(BaseModel):
     type: str
     message: str
@@ -71,14 +72,14 @@ class GenerateFromNewsResponse(BaseModel):
     published_at: datetime | None
     source: str
     provider: str
-    external_message_id: datetime | None
+    external_message_id: str | None
 
 
 # --- Sources ---
 
 class SourceItemResponse(BaseModel):
     id: str
-    type: str
+    type: SourceType
     name: str
     url: str | None
     enabled: bool
@@ -165,7 +166,7 @@ class SourceUpdateRequest(BaseModel):
 # --- Keyword management API ---
 class KeywordItemResponse(BaseModel):
     value: str
-    type: str
+    type: KeywordType
 
 
 class KeywordListResponse(BaseModel):
@@ -200,7 +201,7 @@ class PostHistoryItemResponse(BaseModel):
     id: str
     news_id: str
     generated_text: str
-    status: str
+    status: PostStatus
     created_at: datetime
     published_at: datetime | None
     source: str

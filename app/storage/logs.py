@@ -1,44 +1,100 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
-from typing import List
+from typing import Iterable
 
 from app.models import LogItem
-from app.config import APP_REDIS_URL
-import redis
+from app.storage.redis_client import get_redis_client
 
 
-# --- JSONL storage (fallback) ---
 class JsonlLogStorage:
-    def __init__(self, path: Path = Path("data/logs.jsonl")) -> None:
-        self.path = path
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+    """ JSONL-хранилище для логов приложения."""
+
+    def __init__(self, file_path: str | Path = "data/logs.jsonl") -> None:
+        self.file_path = Path(file_path)
+        self.file_path.parent.mkdir(parents=True, exist_ok=True)
 
     def save(self, item: LogItem) -> None:
-        with self.path.open("a", encoding="utf-8") as f:
-            f.write(item.model_dump_json() + "\n")
+        with self.file_path.open("a", encoding="utf-8") as file:
+            file.write(item.model_dump_json() + "\n")
 
-    def list_all(self) -> List[LogItem]:
-        if not self.path.exists():
+    def save_many(self, items: Iterable[LogItem]) -> int:
+        items_list = list(items)
+        if not items_list:
+            return 0
+
+        with self.file_path.open("a", encoding="utf-8") as file:
+            for item in items_list:
+                file.write(item.model_dump_json() + "\n")
+
+        return len(items_list)
+
+    def list_all(self) -> list[LogItem]:
+        if not self.file_path.exists():
             return []
 
-        items = []
-        with self.path.open("r", encoding="utf-8") as f:
-            for line in f:
-                items.append(LogItem.model_validate_json(line))
-        return items
+        result: list[LogItem] = []
+
+        with self.file_path.open("r", encoding="utf-8") as file:
+            for line in file:
+                line = line.strip()
+                if not line:
+                    continue
+
+                payload = json.loads(line)
+                result.append(LogItem.model_validate(payload))
+
+        return result
 
 
-# --- Redis storage ---
 class RedisLogStorage:
-    KEY = "logs"
+    """ Redis-хранилище для логов приложения."""
+    IDS_KEY = "logs:ids"
+    ITEM_KEY_PREFIX = "logs:item:"
 
     def __init__(self) -> None:
-        self.client = redis.from_url(APP_REDIS_URL, decode_responses=True)
+        self.redis = get_redis_client()
+
+    @classmethod
+    def _item_key(cls, log_id: str) -> str:
+        return f"{cls.ITEM_KEY_PREFIX}{log_id}"
 
     def save(self, item: LogItem) -> None:
-        self.client.lpush(self.KEY, item.model_dump_json())
+        pipeline = self.redis.pipeline()
+        pipeline.set(self._item_key(item.id), item.model_dump_json())
+        pipeline.zadd(self.IDS_KEY, {item.id: item.created_at.timestamp()})
+        pipeline.execute()
 
-    def list_all(self) -> List[LogItem]:
-        raw_items = self.client.lrange(self.KEY, 0, -1)
-        return [LogItem.model_validate_json(item) for item in raw_items]
+    def save_many(self, items: Iterable[LogItem]) -> int:
+        items_list = list(items)
+        if not items_list:
+            return 0
+
+        pipeline = self.redis.pipeline()
+
+        for item in items_list:
+            pipeline.set(self._item_key(item.id), item.model_dump_json())
+            pipeline.zadd(self.IDS_KEY, {item.id: item.created_at.timestamp()})
+
+        pipeline.execute()
+        return len(items_list)
+
+    def list_all(self) -> list[LogItem]:
+        ids = self.redis.zrange(self.IDS_KEY, 0, -1)
+        if not ids:
+            return []
+
+        pipeline = self.redis.pipeline()
+        for log_id in ids:
+            pipeline.get(self._item_key(log_id))
+
+        payloads = pipeline.execute()
+
+        result: list[LogItem] = []
+        for payload in payloads:
+            if not payload:
+                continue
+            result.append(LogItem.model_validate_json(payload))
+
+        return result

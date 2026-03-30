@@ -5,7 +5,7 @@ import asyncio
 from dataclasses import dataclass
 
 from app.ai.base import TextGenerationClient
-from app.ai.errors import AiTemporaryUnavailableError
+from app.ai.errors import AiTemporaryUnavailableError, AiRateLimitError
 from app.ai.validators import (
     sanitize_llm_output,
     validate_llm_output,
@@ -97,8 +97,9 @@ class PostGenerator:
 
                 return text
 
-            except AiTemporaryUnavailableError as exc:
-                last_temporary_error = exc
+
+            except (AiTemporaryUnavailableError, AiRateLimitError) as exc:
+                last_temporary_error: AiTemporaryUnavailableError | None = None
 
             except LLMOutputError as exc:
                 last_output_error = exc
@@ -118,7 +119,7 @@ class PostGenerator:
             if attempt == self._MAX_ATTEMPTS:
                 break
 
-            await asyncio.sleep(self._RETRY_DELAY_SECONDS)
+            await asyncio.sleep(self._RETRY_DELAY_SECONDS * attempt)
 
         if last_output_error is not None:
             raise last_output_error

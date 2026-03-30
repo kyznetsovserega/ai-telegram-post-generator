@@ -2,9 +2,12 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from app.models import NewsItem, NewsStatus
+from app.models import NewsItem, NewsStatus, LogItem, LogLevel
 
 from app.services.source_service import SourceService
+
+from app.storage import get_log_storage
+from app.services.log_service import LogService
 
 NewsCollector = Callable[..., list[NewsItem]]
 AvailableSitesProvider = Callable[[], list[str]]
@@ -30,7 +33,21 @@ class NewsService:
             sites: list[str],
             limit_per_site: int,
     ) -> tuple[list[str], int, int]:
+        log_service = LogService(get_log_storage())
+
         supported_sites = set(self.available_sites_provider())
+
+        unknown_sites = [site for site in sites if site not in supported_sites]
+        for site in unknown_sites:
+            log_service.add_log(
+                LogItem(
+                    level=LogLevel.ERROR,
+                    message=f"Unsupported source requested: {site}",
+                    source="collect",
+                    context={"source_key": site},
+                )
+            )
+
         requested_sites = [site for site in sites if site in supported_sites]
 
         available_sources = {

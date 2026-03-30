@@ -3,12 +3,15 @@ from __future__ import annotations
 from typing import Protocol
 
 from app.config import TELEGRAM_SOURCE_CHANNELS
-from app.models import NewsItem, SourceItem, SourceType
+from app.models import NewsItem, SourceItem, SourceType, LogItem, LogLevel
 from app.news_parser.sources.habr import HabrRssParser
 from app.news_parser.sources.rbc import RbcRssParser
 from app.news_parser.sources.vc import VcRssParser
 from app.news_parser.sources.tproger import TprogerRssParser
 from app.news_parser.sources.telegram_channels import TelegramChannelParser
+
+from app.storage import get_log_storage
+from app.services.log_service import LogService
 
 
 class SiteParser(Protocol):
@@ -73,15 +76,38 @@ async def collect_from_sites(sites: list[str], limit_per_site: int = 20) -> list
     """
     result: list[NewsItem] = []
 
+    log_service = LogService(get_log_storage())
+
     for key in sites:
         parser = _PARSERS.get(key)
         if parser is None:
+            log_service.add_log(
+                LogItem(
+                    level=LogLevel.ERROR,
+                    message=f"Parser not found for source={key}",
+                    source="collect",
+                    context={"source_key": key},
+                )
+            )
             continue
 
         try:
             items = await parser.parse(limit=limit_per_site)
             result.extend(items)
-        except Exception:
+
+        except Exception as e:
+            log_service.add_log(
+                LogItem(
+                    level=LogLevel.ERROR,
+                    message=f"Failed to collect from source={key}: {str(e)}",
+                    source="collect",
+                    context={
+                        "source_key": key,
+                        "error": str(e),
+                        "error_type": type(e).__name__,
+                    },
+                )
+            )
             continue
 
     return result

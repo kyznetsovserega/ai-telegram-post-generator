@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Iterable, Optional
@@ -8,21 +9,49 @@ from app.models import NewsItem
 from app.storage.redis_client import get_redis_client
 
 
+# HELPER (общий)
+def normalize_text(value: str) -> str:
+    return " ".join(value.lower().split())
+
+
+def generate_content_hash(item: NewsItem) -> str:
+    parts = [
+        item.title,
+        item.summary,
+        item.raw_text or "",
+    ]
+    normalized = normalize_text(" ".join(parts))
+    return hashlib.md5(normalized.encode("utf-8")).hexdigest()
+
+
 class JsonlNewsStorage:
-    """ Хранилище JSONL для анализируемых новостей. """
+    """ Хранилище JSONL для новостей + дедуп по content-hash. """
+    HASH_FILE = Path("data/news_hashes.jsonl")
 
     def __init__(self, path: str | Path) -> None:
         self.path = path
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.HASH_FILE.parent.mkdir(parents=True, exist_ok=True)
+
+    def _load_hashes(self) -> set[str]:
+        if not self.HASH_FILE.exists():
+            return set()
+
+        with self.HASH_FILE.open("r", encoding="utf-8") as f:
+            return {line.strip() for line in f if line.strip()}
+
+    def _append_hash(self, value: str) -> None:
+        with self.HASH_FILE.open("a", encoding="utf-8") as f:
+            f.write(value + "\n")
 
     def save_many(self, items: Iterable[NewsItem]) -> int:
-        """Сохраняет только новые новости, которых ещё нет по id."""
         items_list = list(items)
-
         if not items_list:
             return 0
 
         existing_ids = {item.id for item in self.list_all()}
+        existing_hashes = self._load_hashes()
+
         unique_items: list[NewsItem] = []
         seen_new_ids: set[str] = set()
 
@@ -33,15 +62,23 @@ class JsonlNewsStorage:
             if item.id in seen_new_ids:
                 continue
 
+            content_hash = generate_content_hash(item)
+
+            # --- ДЕДУП ПО HASH ---
+            if content_hash in existing_hashes:
+                continue
+
             seen_new_ids.add(item.id)
+            existing_hashes.add(content_hash)
             unique_items.append(item)
 
         if not unique_items:
             return 0
 
         with self.path.open("a", encoding="utf-8") as file:
-            for item in unique_items:
+            for item, content_hash in unique_items:
                 file.write(item.model_dump_json() + "\n")
+                self._append_hash(content_hash)
 
         return len(unique_items)
 
@@ -55,7 +92,6 @@ class JsonlNewsStorage:
         with self.path.open("r", encoding="utf-8") as file:
             for line in file:
                 line = line.strip()
-
                 if not line:
                     continue
 
@@ -69,15 +105,9 @@ class JsonlNewsStorage:
         for item in self.list_all():
             if item.id == news_id:
                 return item
-
         return None
 
     def write_all(self, items: Iterable[NewsItem]) -> None:
-        """
-        Полностью перезаписывает JSONL файл новостей.
-
-        Используется pipeline'ом, чтобы обновить статусы новостей.
-        """
         items_list = list(items)
 
         with self.path.open("w", encoding="utf-8") as file:
@@ -86,9 +116,10 @@ class JsonlNewsStorage:
 
 
 class RedisNewsStorage:
-    """ Redis-хранилище для новостей. """
+    """ Redis-хранилище новостей + дедуп по content-hash. """
 
     IDS_KEY = "news:ids"
+    HASHES_KEY = "news:content_hashes"
     ITEM_KEY_PREFIX = "news:item:"
 
     def __init__(self) -> None:
@@ -105,9 +136,16 @@ class RedisNewsStorage:
             if self.redis.sismember(self.IDS_KEY, item.id):
                 continue
 
+            content_hash = generate_content_hash(item)
+
+            # --- ДЕДУП ПО HASH ---
+            if self.redis.sismember(self.HASHES_KEY, content_hash):
+                continue
+
             pipeline = self.redis.pipeline()
             pipeline.set(self._item_key(item.id), item.model_dump_json())
             pipeline.sadd(self.IDS_KEY, item.id)
+            pipeline.sadd(self.HASHES_KEY, content_hash)
             pipeline.execute()
 
             count += 1
@@ -151,9 +189,13 @@ class RedisNewsStorage:
             pipeline.delete(self._item_key(news_id))
 
         pipeline.delete(self.IDS_KEY)
+        pipeline.delete(self.HASHES_KEY)
 
         for item in items_list:
+            content_hash = generate_content_hash(item)
+
             pipeline.set(self._item_key(item.id), item.model_dump_json())
             pipeline.sadd(self.IDS_KEY, item.id)
+            pipeline.sadd(self.HASHES_KEY, content_hash)
 
         pipeline.execute()

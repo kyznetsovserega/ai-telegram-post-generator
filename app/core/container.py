@@ -6,7 +6,8 @@ from app.ai.factory import build_text_generation_client
 from app.ai.generator import PostGenerator
 from app.news_parser.sites import (
     available_source_items,
-    collect_from_sites, available_source_ids,
+    collect_from_sites,
+    available_source_ids,
 )
 from app.services import (
     FilterService,
@@ -48,19 +49,20 @@ class Container:
         self.keyword_storage = get_keyword_storage()
         self.log_storage = get_log_storage()
 
-        # --- services ---
+        # services
         self.log_service = LogService(storage=self.log_storage)
 
         self.keyword_service = KeywordService(storage=self.keyword_storage)
 
-        self.filter_service = FilterService(
-            keyword_service=self.keyword_service,
-            log_service=self.log_service,
-        )
-
         self.source_service = SourceService(
             storage=self.source_storage,
             available_source_items_provider=available_source_items,
+        )
+
+        self.filter_service = FilterService(
+            keyword_service=self.keyword_service,
+            log_service=self.log_service,
+            source_service=self.source_service,
         )
 
         self.news_service = NewsService(

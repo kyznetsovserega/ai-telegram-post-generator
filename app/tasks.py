@@ -1,40 +1,11 @@
 from __future__ import annotations
 
-import asyncio
+from celery import chain
 
-from celery import Celery, chain
-from celery.schedules import crontab
-
-from app.config import (
-    CELERY_BROKER_URL,
-    CELERY_RESULT_BACKEND,
-    COLLECT_SITES_DEFAULT,
-)
+from app.celery_app import celery_app
+from app.config import COLLECT_SITES_DEFAULT
 from app.core.container import get_container
 from app.models import LogItem, LogLevel, NewsStatus
-
-celery_app = Celery(
-    "ai_tg_post_generator",
-    broker=CELERY_BROKER_URL,
-    backend=CELERY_RESULT_BACKEND,
-)
-
-celery_app.conf.update(
-    task_serializer="json",
-    accept_content=["json"],
-    result_serializer="json",
-    timezone="UTC",
-    enable_utc=True,
-)
-
-# Celery Beat: каждые 30 мин запускать сбор новостей
-celery_app.conf.beat_schedule = {
-    "collect-sites-every-30-minutes": {
-        "task": "app.tasks.pipeline_chain_task",
-        "schedule": crontab(minute="*/30"),
-        "args": (),
-    }
-}
 
 
 @celery_app.task(name="app.tasks.ping")
@@ -56,11 +27,9 @@ def collect_sites_task() -> dict:
         for site in COLLECT_SITES_DEFAULT.split(",")
         if site.strip()]
 
-    processed_sites, collected, saved = asyncio.run(
-        news_service.collect_from_sites(
-            sites=requested_sites,
-            limit_per_site=3,
-        )
+    processed_sites, collected, saved = news_service.collect_from_sites_sync(
+        sites=requested_sites,
+        limit_per_site=3,
     )
 
     result = {
@@ -148,16 +117,15 @@ def generate_posts_task(previous_result: dict | None = None) -> dict:
         item for item in all_items if item.status == NewsStatus.FILTERED
     ]
 
-    generation_result = asyncio.run(
-        generation_service.generate_for_news_items(filtered_items)
+    generation_result = generation_service.generate_for_news_items_sync(
+        filtered_items
     )
 
-    # читаем все созданные посты
+    # читаем все созданные посты и переводим связанные новости в GENERATED
     posts = post_service.list_all()
     generated_news_ids = {post.news_id for post in posts}
 
     updated_items: list = []
-
     for item in all_items:
         if item.status == NewsStatus.FILTERED and item.id in generated_news_ids:
             updated_items.append(
@@ -166,7 +134,7 @@ def generate_posts_task(previous_result: dict | None = None) -> dict:
         else:
             updated_items.append(item)
 
-    news_service.replace_all(updated_items)
+    news_service.update_items(updated_items)
 
     log_service.add_log(
         LogItem(
@@ -190,7 +158,7 @@ def publish_posts_task(previous_result: dict | None = None) -> dict:
     log_service = container.log_service
     publish_service = container.publish_service
 
-    result = publish_service.publish_generated_posts
+    result = publish_service.publish_generated_posts()
 
     log_service.add_log(
         LogItem(
@@ -236,7 +204,8 @@ def pipeline_chain_task() -> str:
 @celery_app.task(name="app.tasks.collect_filter_generate_posts_task")
 def collect_filter_generate_posts_task() -> dict:
     """
-    Временная legacy-версия pipeline без chain.
+    Legacy-версия pipeline без chain.
+    Оставлена для обратной совместимости и ручной отладки.
     """
     container = get_container()
     log_service = container.log_service

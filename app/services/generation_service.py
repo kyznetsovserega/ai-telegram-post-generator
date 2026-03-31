@@ -124,6 +124,12 @@ class GenerationService:
         )
         return post_item
 
+    def generate_for_news_items_sync(self, items):
+        import asyncio
+        return asyncio.run(
+            self.generate_for_news_items(items)
+        )
+
     async def generate_for_news_items(
             self,
             items: list[NewsItem],

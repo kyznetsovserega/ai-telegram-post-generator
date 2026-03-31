@@ -3,9 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from app.models import NewsItem, NewsStatus, LogItem, LogLevel
-
 from app.services.source_service import SourceService
-
 from app.storage import get_log_storage
 from app.services.log_service import LogService
 
@@ -27,6 +25,25 @@ class NewsService:
         self.source_service = source_service
         self.collector = collector
         self.available_sites_provider = available_sites_provider
+
+    def collect_from_sites_sync(
+        self,
+        sites: list[str],
+        limit_per_site: int,
+    ) -> tuple[list[str], int, int]:
+        """
+        Sync-обёртка для Celery.
+
+        async остаётся внутри сервиса, а Celery работает с sync API.
+        """
+        import asyncio
+
+        return asyncio.run(
+            self.collect_from_sites(
+                sites=sites,
+                limit_per_site=limit_per_site,
+            )
+        )
 
     async def collect_from_sites(
             self,

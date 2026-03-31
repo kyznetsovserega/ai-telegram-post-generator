@@ -11,7 +11,7 @@ from app.api.schemas import (
     SourceListResponse,
     SourceUpdateRequest,
 )
-from app.models import SourceItem, SourceType
+from app.models import SourceType
 from app.services.source_service import SourceService
 
 router = APIRouter()
@@ -69,13 +69,11 @@ async def create_source(
 ) -> SourceItemResponse:
     try:
         source = service.create_source(
-            SourceItem(
-                id=payload.id,
-                type=SourceType(payload.type),
-                name=payload.name,
-                url=payload.url,
-                enabled=payload.enabled,
-            )
+            source_type=SourceType(payload.type),
+            source_id=payload.id,
+            name=payload.name,
+            url=payload.url,
+            enabled=payload.enabled,
         )
 
         return SourceItemResponse(
@@ -100,6 +98,10 @@ async def create_source(
     description="Updates source metadata or enabled status.",
     responses={
         200: {"description": "Source updated successfully"},
+        400: {
+            "description": "Invalid source payload",
+            "model": ErrorResponse,
+        },
         404: {
             "description": "Source not found",
             "model": ErrorResponse,

@@ -86,7 +86,7 @@ class SourceItemResponse(BaseModel):
 
 
 class SourceCreateRequest(BaseModel):
-    id: str = Field(min_length=1)
+    id: str | None = None
     type: str
     name: str = Field(min_length=1)
     url: str | None = None
@@ -94,10 +94,13 @@ class SourceCreateRequest(BaseModel):
 
     @field_validator("id")
     @classmethod
-    def validate_id(cls, value: str) -> str:
+    def validate_id(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+
         normalized = value.strip().lower()
         if not normalized:
-            raise ValueError("source id must not be empty")
+            return None
         return normalized
 
     @field_validator("type")

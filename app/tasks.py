@@ -8,28 +8,51 @@ from app.core.container import get_container
 from app.models import LogItem, LogLevel, NewsStatus
 
 
+def _get_enabled_source_ids() -> list[str]:
+    """
+    Возвращает все enabled source ids из storage.
+    """
+    container = get_container()
+    source_service = container.source_service
+
+    return [
+        source.id
+        for source in source_service.list_all()
+        if source.enabled
+    ]
+
+
 @celery_app.task(name="app.tasks.ping")
 def ping() -> dict:
     return {"ok": True}
 
 
 @celery_app.task(name="app.tasks.collect_sites_task")
-def collect_sites_task() -> dict:
+def collect_sites_task(payload: dict | None = None) -> dict:
     """
     Celery task для сбора новостей напрямую через service layer.
     """
+    payload = payload or {}
+
     container = get_container()
     log_service = container.log_service
     news_service = container.news_service
 
-    requested_sites = [
-        site.strip()
-        for site in COLLECT_SITES_DEFAULT.split(",")
-        if site.strip()]
+    requested_sites = payload.get("sites")
+    if requested_sites is None:
+        requested_sites = _get_enabled_source_ids()
+    else:
+        requested_sites = [
+            site.strip()
+            for site in requested_sites
+            if site and site.strip()
+        ]
+
+    limit_per_site = int(payload.get("limit_per_site", 3))
 
     processed_sites, collected, saved = news_service.collect_from_sites_sync(
         sites=requested_sites,
-        limit_per_site=3,
+        limit_per_site=limit_per_site,
     )
 
     result = {

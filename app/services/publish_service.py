@@ -20,15 +20,28 @@ class PublishService:
     def publish_generated_posts(self) -> dict:
         """
         Публикуем только еще не опубликованные посты.
+
+        Логика итоговой статистики:
+        - total: все посты, которые видит storage на момент запуска
+        - publishable: сколько из них реально подходят для публикации сейчас
+        - skipped: сколько не вошло в текущую публикацию
+        - published: сколько успешно опубликовано
+        - failed: сколько упало в публикации
         """
+
+        all_posts = self.post_storage.list_all()
         publishable_posts = self.post_storage.list_publishable()
-        total_posts = len(self.post_storage.list_all())
+
+        total_posts = len(all_posts)
+        publishable_count = len(publishable_posts)
+        skipped_count = total_posts - publishable_count
 
         if not publishable_posts:
             return {
-                "total": 0,
+                "total": total_posts,
+                "publishable": 0,
                 "published": 0,
-                "skipped": total_posts,
+                "skipped": skipped_count,
                 "failed": 0,
                 "published_post_ids": [],
                 "failed_post_ids": [],
@@ -126,9 +139,10 @@ class PublishService:
                 )
 
         return {
-            "total": len(publishable_posts),
+            "total": total_posts,
+            "publishable": publishable_count,
             "published": len(published_ids),
-            "skipped": total_posts - len(publishable_posts),
+            "skipped": skipped_count,
             "failed": len(failed_ids),
             "published_post_ids": published_ids,
             "failed_post_ids": failed_ids,

@@ -106,6 +106,7 @@ class KeywordItem(BaseModel):
 
 class LogLevel(str, Enum):
     INFO = "info"
+    WARNING = "warning"
     ERROR = "error"
 
 

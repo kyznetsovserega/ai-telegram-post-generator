@@ -27,9 +27,9 @@ class NewsService:
         self.available_sites_provider = available_sites_provider
 
     def collect_from_sites_sync(
-        self,
-        sites: list[str],
-        limit_per_site: int,
+            self,
+            sites: list[str],
+            limit_per_site: int,
     ) -> tuple[list[str], int, int]:
         """
         Sync-обёртка для Celery.
@@ -50,9 +50,19 @@ class NewsService:
             sites: list[str],
             limit_per_site: int,
     ) -> tuple[list[str], int, int]:
+        """
+        Собирает новости только по поддерживаемым и enabled источникам.
+        """
         log_service = LogService(get_log_storage())
 
-        supported_sites = set(self.available_sites_provider())
+        available_sources = {
+            source.id: source
+            for source in self.source_service.list_all()
+        }
+
+        catalog_sites = set(self.available_sites_provider())
+
+        supported_sites = catalog_sites | set(available_sources.keys())
 
         unknown_sites = [site for site in sites if site not in supported_sites]
         for site in unknown_sites:
@@ -67,15 +77,22 @@ class NewsService:
 
         requested_sites = [site for site in sites if site in supported_sites]
 
-        available_sources = {
-            source.id: source
-            for source in self.source_service.list_all()
-        }
         enabled_sites = [
             site
             for site in requested_sites
             if available_sources.get(site) is not None and available_sources[site].enabled
         ]
+
+        if not enabled_sites:
+            log_service.add_log(
+                LogItem(
+                    level=LogLevel.WARNING,
+                    message="No enabled sources available for collection",
+                    source="collect",
+                    context={"requested_sites": requested_sites},
+                )
+            )
+            return [], 0, 0
 
         items = await self.collector(
             sites=enabled_sites,

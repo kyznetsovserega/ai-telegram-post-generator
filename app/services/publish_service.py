@@ -53,6 +53,12 @@ class PublishService:
         errors: list[dict[str, str]] = []
 
         for post in publishable_posts:
+            if (
+                    post.status == PostStatus.PUBLISHED
+                    or post.external_message_id is not None
+            ):
+                continue
+
             try:
                 result = self.publisher.publish_post(post.generated_text)
 

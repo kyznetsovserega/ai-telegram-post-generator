@@ -68,7 +68,11 @@ class JsonlPostStorage:
         """ Возвращает только посты, готовые к публикации."""
         return [
             item for item in self.list_all()
-            if item.status == PostStatus.GENERATED and item.published_at is None
+            if (
+                    item.status == PostStatus.GENERATED
+                    and item.published_at is None
+                    and item.external_message_id is None
+            )
         ]
 
     def update(self, post: PostItem) -> None:

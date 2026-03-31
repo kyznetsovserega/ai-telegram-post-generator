@@ -4,7 +4,6 @@ from collections.abc import Callable
 
 from app.models import NewsItem, NewsStatus, LogItem, LogLevel
 from app.services.source_service import SourceService
-from app.storage import get_log_storage
 from app.services.log_service import LogService
 
 NewsCollector = Callable[..., list[NewsItem]]
@@ -20,11 +19,13 @@ class NewsService:
             source_service: SourceService,
             collector,
             available_sites_provider,
+            log_service: LogService,
     ) -> None:
         self.storage = storage
         self.source_service = source_service
         self.collector = collector
         self.available_sites_provider = available_sites_provider
+        self.log_service = log_service
 
     def collect_from_sites_sync(
             self,
@@ -33,8 +34,6 @@ class NewsService:
     ) -> tuple[list[str], int, int]:
         """
         Sync-обёртка для Celery.
-
-        async остаётся внутри сервиса, а Celery работает с sync API.
         """
         import asyncio
 
@@ -53,20 +52,17 @@ class NewsService:
         """
         Собирает новости только по поддерживаемым и enabled источникам.
         """
-        log_service = LogService(get_log_storage())
-
         available_sources = {
             source.id: source
             for source in self.source_service.list_all()
         }
 
         catalog_sites = set(self.available_sites_provider())
-
         supported_sites = catalog_sites | set(available_sources.keys())
 
         unknown_sites = [site for site in sites if site not in supported_sites]
         for site in unknown_sites:
-            log_service.add_log(
+            self.log_service.add_log(
                 LogItem(
                     level=LogLevel.ERROR,
                     message=f"Unsupported source requested: {site}",
@@ -84,7 +80,7 @@ class NewsService:
         ]
 
         if not enabled_sites:
-            log_service.add_log(
+            self.log_service.add_log(
                 LogItem(
                     level=LogLevel.WARNING,
                     message="No enabled sources available for collection",

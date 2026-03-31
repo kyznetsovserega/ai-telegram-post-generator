@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 
-from telethon.sync import TelegramClient
+from telethon import TelegramClient
 
 from app.config import (
     TELEGRAM_API_HASH,
@@ -20,7 +21,7 @@ class PublishResult:
 
 
 class TelegramPublisher:
-    """ Sync-first publisher для Celery. """
+    """ Sync-first publisher для Celery (с ручным event loop). """
 
     def publish_post(self, text: str) -> PublishResult:
         normalized = text.strip()
@@ -37,24 +38,30 @@ class TelegramPublisher:
         if not TELEGRAM_API_HASH:
             raise RuntimeError("TELEGRAM_API_HASH is not configured")
 
-        try:
-            # sync Telethon клиент
-            with TelegramClient(
+        async def _send():
+            async with TelegramClient(
                     session=TELEGRAM_SESSION_NAME,
                     api_id=int(TELEGRAM_API_ID),
                     api_hash=TELEGRAM_API_HASH,
             ) as client:
-
-                message = client.send_message(
+                message = await client.send_message(
                     TELEGRAM_CHANNEL,
                     normalized,
                 )
+                return message
 
-                return PublishResult(
-                    is_published=True,
-                    external_id=str(message.id),
-                    error_message=None,
-                )
+        try:
+            # свой event loop
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+            message = loop.run_until_complete(_send())
+
+            return PublishResult(
+                is_published=True,
+                external_id=str(message.id),
+                error_message=None,
+            )
 
         except Exception as exc:
             return PublishResult(
@@ -62,3 +69,6 @@ class TelegramPublisher:
                 external_id=None,
                 error_message=str(exc),
             )
+
+        finally:
+            loop.close()

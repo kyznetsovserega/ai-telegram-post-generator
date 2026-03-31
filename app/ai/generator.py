@@ -73,7 +73,7 @@ class PostGenerator:
         return await self.generate_from_text(input_text)
 
     async def _generate_with_retry(self, *, instructions: str, user_input: str) -> str:
-        last_temporary_error: AiTemporaryUnavailableError | None = None
+        last_temporary_error: Exception | None = None
         last_output_error: LLMOutputError | None = None
 
         original_instructions = instructions
@@ -99,7 +99,7 @@ class PostGenerator:
 
 
             except (AiTemporaryUnavailableError, AiRateLimitError) as exc:
-                last_temporary_error: AiTemporaryUnavailableError | None = None
+                last_temporary_error = exc
 
             except LLMOutputError as exc:
                 last_output_error = exc

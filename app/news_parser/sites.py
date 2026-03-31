@@ -36,15 +36,22 @@ for channel_username in TELEGRAM_SOURCE_CHANNELS:
     )
 
 
-def available_sites() -> list[str]:
+def available_source_ids() -> list[str]:
     return sorted(_PARSERS.keys())
+
+
+def available_sites() -> list[str]:
+    """
+    Backward-compatible alias.
+    """
+    return available_source_ids()
 
 
 def available_source_items() -> list[SourceItem]:
     result: list[SourceItem] = []
 
-    for key in available_sites():
-        if key.startswith("tg"):
+    for key in available_source_ids():
+        if key.startswith("tg:"):
             username = key.removeprefix("tg:")
             result.append(
                 SourceItem(
@@ -69,10 +76,27 @@ def available_source_items() -> list[SourceItem]:
     return result
 
 
+def _build_dynamic_parser(source_key: str) -> SiteParser | None:
+    """
+    Динамически создаёт parser для пользовательских источников,
+    если они не входят во встроенный каталог.
+    """
+    if source_key.startswith("tg:"):
+        username = source_key.removeprefix("tg:").strip().lstrip("@").lower()
+        if not username:
+            return None
+        return TelegramChannelParser(channel_username=username)
+
+    return None
+
+
 async def collect_from_sites(sites: list[str], limit_per_site: int = 20) -> list[NewsItem]:
     """
     Собираем новости из указанных source keys.
     Если один источник упал - пропускаем его.
+    Поддерживает:
+    - встроенные источники из каталога
+    - пользовательские TG-источники вида tg:<username>
     """
     result: list[NewsItem] = []
 
@@ -80,6 +104,10 @@ async def collect_from_sites(sites: list[str], limit_per_site: int = 20) -> list
 
     for key in sites:
         parser = _PARSERS.get(key)
+
+        if parser is None:
+            parser = _build_dynamic_parser(key)
+
         if parser is None:
             log_service.add_log(
                 LogItem(

@@ -34,6 +34,7 @@ class NewsItem(BaseModel):
     published_at: datetime
     raw_text: Optional[str] = None
     status: NewsStatus = NewsStatus.NEW
+    content_hash: Optional[str] = None
 
     @field_validator("status", mode="before")
     @classmethod

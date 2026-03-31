@@ -1,16 +1,16 @@
 from __future__ import annotations
 
-import hashlib
-
-from app.models import NewsItem, NewsStatus, KeywordType
+from app.models import NewsItem, NewsStatus, KeywordType, LogItem, LogLevel
 from app.services.keyword_service import KeywordService
+from app.storage.news import generate_content_hash
 
 
 class FilterService:
-    """MVP-фильтрация новостей для pipeline."""
+    """Фильтрация новостей с логированием."""
 
-    def __init__(self, keyword_service: KeywordService) -> None:
+    def __init__(self, keyword_service: KeywordService, log_service) -> None:
         self.keyword_service = keyword_service
+        self.log_service = log_service
 
     def apply_filter(self, items: list[NewsItem]) -> tuple[list[NewsItem], list[NewsItem]]:
         include_keywords = [
@@ -29,35 +29,43 @@ class FilterService:
         seen_hashes: set[str] = set()
 
         for item in items:
-            # --- дедуп по ID ---
+            # --- считаем hash ОДИН РАЗ ---
+            content_hash = generate_content_hash(item)
+
+            item = item.model_copy(update={"content_hash": content_hash})
+
+            # --- duplicate by ID ---
             if item.id in seen_ids:
+                self._log_drop(item, "duplicate_id")
                 dropped_items.append(item.model_copy(update={"status": NewsStatus.DROPPED}))
                 continue
 
             searchable_text = self._build_searchable_text(item)
 
             if not searchable_text:
+                self._log_drop(item, "empty_searchable_text")
                 dropped_items.append(item.model_copy(update={"status": NewsStatus.DROPPED}))
                 continue
 
-            # --- дедуп по контенту ---
-            content_hash = self._generate_content_hash(item)
-
+            # --- duplicate by content ---
             if content_hash in seen_hashes:
+                self._log_drop(item, "duplicate_content")
                 dropped_items.append(item.model_copy(update={"status": NewsStatus.DROPPED}))
                 continue
 
             # --- exclude ---
             if self._contains_keyword(searchable_text, exclude_keywords):
+                self._log_drop(item, "excluded_by_keyword")
                 dropped_items.append(item.model_copy(update={"status": NewsStatus.DROPPED}))
                 continue
 
             # --- include ---
             if include_keywords and not self._contains_keyword(searchable_text, include_keywords):
+                self._log_drop(item, "no_include_match")
                 dropped_items.append(item.model_copy(update={"status": NewsStatus.DROPPED}))
                 continue
 
-            # --- сохраняем ---
+            # --- OK ---
             seen_ids.add(item.id)
             seen_hashes.add(content_hash)
 
@@ -65,35 +73,27 @@ class FilterService:
 
         return filtered_items, dropped_items
 
+    def _log_drop(self, item: NewsItem, reason: str) -> None:
+        self.log_service.add_log(
+            LogItem(
+                level=LogLevel.INFO,
+                message="News item dropped",
+                source="filter",
+                context={
+                    "reason": reason,
+                    "news_id": item.id,
+                    "source": item.source,
+                },
+            )
+        )
+
     def _build_searchable_text(self, item: NewsItem) -> str:
         parts = [
             item.title.strip(),
             item.summary.strip(),
             (item.raw_text or "").strip(),
         ]
-        return self._normalize_text(" ".join(part for part in parts if part))
-
-    def _normalize_text(self, value: str) -> str:
-        return " ".join(value.lower().split())
-
-    def _generate_content_hash(self, item: NewsItem) -> str:
-        """
-        Генерация hash на основе контента новости.
-
-        Используем:
-        - title
-        - summary
-        - raw_text (если есть)
-        """
-        parts = [
-            item.title,
-            item.summary,
-            item.raw_text or "",
-        ]
-
-        normalized = self._normalize_text(" ".join(parts))
-
-        return hashlib.md5(normalized.encode("utf-8")).hexdigest()
+        return " ".join(part for part in parts if part).lower()
 
     def _contains_keyword(self, searchable_text: str, keywords: list[str]) -> bool:
         return any(keyword.lower() in searchable_text for keyword in keywords)

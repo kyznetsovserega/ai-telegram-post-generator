@@ -228,3 +228,20 @@ class LogItemResponse(BaseModel):
 class LogListResponse(BaseModel):
     items: list[LogItemResponse]
     total: int
+
+
+# --- News ---
+
+class NewsItemResponse(BaseModel):
+    id: str
+    title: str
+    summary: str
+    url: str | None
+    source: str
+    status: str
+    published_at: datetime
+
+
+class NewsListResponse(BaseModel):
+    items: list[NewsItemResponse]
+    total: int

@@ -7,7 +7,7 @@ from app.ai.generator import PostGenerator
 from app.news_parser.sites import (
     available_sites,
     available_source_items,
-    collect_from_sites,
+    collect_from_sites, available_source_ids,
 )
 from app.services import (
     FilterService,
@@ -56,6 +56,7 @@ class Container:
 
         self.filter_service = FilterService(
             keyword_service=self.keyword_service,
+            log_service=self.log_service,
         )
 
         self.source_service = SourceService(
@@ -67,7 +68,8 @@ class Container:
             storage=self.news_storage,
             source_service=self.source_service,
             collector=collect_from_sites,
-            available_sites_provider=available_sites,
+            available_sites_provider=available_source_ids,
+            log_service=self.log_service,
         )
 
         self.post_service = PostService(storage=self.post_storage)

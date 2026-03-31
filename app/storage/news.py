@@ -2,19 +2,32 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from pathlib import Path
 from typing import Iterable, Optional
 
 from app.models import NewsItem
 from app.storage.redis_client import get_redis_client
 
+logger = logging.getLogger(__name__)
 
-# HELPER (общий)
+
 def normalize_text(value: str) -> str:
+    """
+    Нормализует текст для дедупликации.
+    """
     return " ".join(value.lower().split())
 
 
 def generate_content_hash(item: NewsItem) -> str:
+    """
+    Генерирует content-hash новости.
+
+    Единая функция для:
+    - filter service
+    - redis storage
+    - jsonl storage
+    """
     parts = [
         item.title,
         item.summary,
@@ -40,6 +53,11 @@ class JsonlNewsStorage:
         with self.HASH_FILE.open("r", encoding="utf-8") as f:
             return {line.strip() for line in f if line.strip()}
 
+    def _write_all_hashes(self, hashes: Iterable[str]) -> None:
+        with self.HASH_FILE.open("w", encoding="utf-8") as file:
+            for value in sorted(set(hashes)):
+                file.write(value + "\n")
+
     def _append_hash(self, value: str) -> None:
         with self.HASH_FILE.open("a", encoding="utf-8") as f:
             f.write(value + "\n")
@@ -52,25 +70,45 @@ class JsonlNewsStorage:
         existing_ids = {item.id for item in self.list_all()}
         existing_hashes = self._load_hashes()
 
-        unique_items: list[NewsItem] = []
+        unique_items: list[tuple[NewsItem, str]] = []
         seen_new_ids: set[str] = set()
 
         for item in items_list:
             if item.id in existing_ids:
+                logger.info(
+                    "News not saved (duplicate id)",
+                    extra={"news_id": item.id},
+                )
                 continue
 
             if item.id in seen_new_ids:
+                logger.info(
+                    "News not saved (duplicate id in batch)",
+                    extra={"news_id": item.id},
+                )
                 continue
 
-            content_hash = generate_content_hash(item)
+            content_hash = item.content_hash or generate_content_hash(item)
 
-            # --- ДЕДУП ПО HASH ---
             if content_hash in existing_hashes:
+                logger.info(
+                    "News not saved (duplicate content)",
+                    extra={
+                        "news_id": item.id,
+                        "content_hash": content_hash,
+                    },
+                )
                 continue
 
             seen_new_ids.add(item.id)
             existing_hashes.add(content_hash)
-            unique_items.append(item)
+
+            unique_items.append(
+                (
+                    item.model_copy(update={"content_hash": content_hash}),
+                    content_hash,
+                )
+            )
 
         if not unique_items:
             return 0
@@ -108,15 +146,26 @@ class JsonlNewsStorage:
         return None
 
     def write_all(self, items: Iterable[NewsItem]) -> None:
+        """
+        Полностью перезаписывает JSONL файл новостей
+        и пересобирает индекс content_hash.
+        """
         items_list = list(items)
 
         with self.path.open("w", encoding="utf-8") as file:
             for item in items_list:
-                file.write(item.model_dump_json() + "\n")
+                content_hash = item.content_hash or generate_content_hash(item)
+                normalized_item = item.model_copy(update={"content_hash": content_hash})
+                file.write(normalized_item.model_dump_json() + "\n")
+
+        self._write_all_hashes(
+            (item.content_hash or generate_content_hash(item) for item in items_list)
+        )
+
 
 
 class RedisNewsStorage:
-    """ Redis-хранилище новостей + дедуп по content-hash. """
+    """Redis-хранилище новостей + дедуп по content-hash."""
 
     IDS_KEY = "news:ids"
     HASHES_KEY = "news:content_hashes"
@@ -134,17 +183,29 @@ class RedisNewsStorage:
 
         for item in items:
             if self.redis.sismember(self.IDS_KEY, item.id):
+                logger.info(
+                    "News not saved (duplicate id)",
+                    extra={"news_id": item.id},
+                )
                 continue
 
-            content_hash = generate_content_hash(item)
+            content_hash = item.content_hash or generate_content_hash(item)
 
-            # --- ДЕДУП ПО HASH ---
             if self.redis.sismember(self.HASHES_KEY, content_hash):
+                logger.info(
+                    "News not saved (duplicate content)",
+                    extra={
+                        "news_id": item.id,
+                        "content_hash": content_hash,
+                    },
+                )
                 continue
+
+            normalized_item = item.model_copy(update={"content_hash": content_hash})
 
             pipeline = self.redis.pipeline()
-            pipeline.set(self._item_key(item.id), item.model_dump_json())
-            pipeline.sadd(self.IDS_KEY, item.id)
+            pipeline.set(self._item_key(normalized_item.id), normalized_item.model_dump_json())
+            pipeline.sadd(self.IDS_KEY, normalized_item.id)
             pipeline.sadd(self.HASHES_KEY, content_hash)
             pipeline.execute()
 
@@ -180,7 +241,6 @@ class RedisNewsStorage:
 
     def write_all(self, items: Iterable[NewsItem]) -> None:
         items_list = list(items)
-
         existing_ids = self.redis.smembers(self.IDS_KEY)
 
         pipeline = self.redis.pipeline()
@@ -192,10 +252,11 @@ class RedisNewsStorage:
         pipeline.delete(self.HASHES_KEY)
 
         for item in items_list:
-            content_hash = generate_content_hash(item)
+            content_hash = item.content_hash or generate_content_hash(item)
+            normalized_item = item.model_copy(update={"content_hash": content_hash})
 
-            pipeline.set(self._item_key(item.id), item.model_dump_json())
-            pipeline.sadd(self.IDS_KEY, item.id)
+            pipeline.set(self._item_key(normalized_item.id), normalized_item.model_dump_json())
+            pipeline.sadd(self.IDS_KEY, normalized_item.id)
             pipeline.sadd(self.HASHES_KEY, content_hash)
 
         pipeline.execute()

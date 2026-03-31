@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+
 from app.models import NewsItem, NewsStatus, KeywordType
 from app.services.keyword_service import KeywordService
 
@@ -22,9 +24,12 @@ class FilterService:
 
         filtered_items: list[NewsItem] = []
         dropped_items: list[NewsItem] = []
+
         seen_ids: set[str] = set()
+        seen_hashes: set[str] = set()
 
         for item in items:
+            # --- дедуп по ID ---
             if item.id in seen_ids:
                 dropped_items.append(item.model_copy(update={"status": NewsStatus.DROPPED}))
                 continue
@@ -35,15 +40,27 @@ class FilterService:
                 dropped_items.append(item.model_copy(update={"status": NewsStatus.DROPPED}))
                 continue
 
+            # --- дедуп по контенту ---
+            content_hash = self._generate_content_hash(item)
+
+            if content_hash in seen_hashes:
+                dropped_items.append(item.model_copy(update={"status": NewsStatus.DROPPED}))
+                continue
+
+            # --- exclude ---
             if self._contains_keyword(searchable_text, exclude_keywords):
                 dropped_items.append(item.model_copy(update={"status": NewsStatus.DROPPED}))
                 continue
 
+            # --- include ---
             if include_keywords and not self._contains_keyword(searchable_text, include_keywords):
                 dropped_items.append(item.model_copy(update={"status": NewsStatus.DROPPED}))
                 continue
 
+            # --- сохраняем ---
             seen_ids.add(item.id)
+            seen_hashes.add(content_hash)
+
             filtered_items.append(item.model_copy(update={"status": NewsStatus.FILTERED}))
 
         return filtered_items, dropped_items
@@ -58,6 +75,25 @@ class FilterService:
 
     def _normalize_text(self, value: str) -> str:
         return " ".join(value.lower().split())
+
+    def _generate_content_hash(self, item: NewsItem) -> str:
+        """
+        Генерация hash на основе контента новости.
+
+        Используем:
+        - title
+        - summary
+        - raw_text (если есть)
+        """
+        parts = [
+            item.title,
+            item.summary,
+            item.raw_text or "",
+        ]
+
+        normalized = self._normalize_text(" ".join(parts))
+
+        return hashlib.md5(normalized.encode("utf-8")).hexdigest()
 
     def _contains_keyword(self, searchable_text: str, keywords: list[str]) -> bool:
         return any(keyword.lower() in searchable_text for keyword in keywords)

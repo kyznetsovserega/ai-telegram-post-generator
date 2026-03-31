@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 
-from app.models import NewsItem, NewsStatus, LogItem, LogLevel
-from app.services.source_service import SourceService
+from app.models import LogItem, LogLevel, NewsItem, NewsStatus
 from app.services.log_service import LogService
+from app.services.source_service import SourceService
 
-NewsCollector = Callable[..., list[NewsItem]]
+NewsCollector = Callable[..., Awaitable[list[NewsItem]]]
 AvailableSitesProvider = Callable[[], list[str]]
 
 
@@ -17,8 +17,8 @@ class NewsService:
             self,
             storage,
             source_service: SourceService,
-            collector,
-            available_sites_provider,
+            collector: NewsCollector,
+            available_sites_provider: AvailableSitesProvider,
             log_service: LogService,
     ) -> None:
         self.storage = storage
@@ -26,23 +26,6 @@ class NewsService:
         self.collector = collector
         self.available_sites_provider = available_sites_provider
         self.log_service = log_service
-
-    def collect_from_sites_sync(
-            self,
-            sites: list[str],
-            limit_per_site: int,
-    ) -> tuple[list[str], int, int]:
-        """
-        Sync-обёртка для Celery.
-        """
-        import asyncio
-
-        return asyncio.run(
-            self.collect_from_sites(
-                sites=sites,
-                limit_per_site=limit_per_site,
-            )
-        )
 
     async def collect_from_sites(
             self,

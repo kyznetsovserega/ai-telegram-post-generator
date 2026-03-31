@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from collections.abc import Callable
 from datetime import datetime, timezone
 from uuid import uuid4
@@ -50,7 +49,7 @@ class GenerationService:
     async def generate_from_text(self, text: str) -> str:
         """
         Async-метод для API-слоя.
-        generate router вызывает этот метод через await.
+        Generate router вызывает этот метод через await.
         """
         self.ensure_provider_configured()
 
@@ -67,17 +66,6 @@ class GenerationService:
             raise LookupError(f"News item with id='{news_id}' not found")
 
         return await self._generate_from_news_item(news_item)
-
-    def generate_for_news_items_sync(
-            self,
-            items: list[NewsItem],
-    ) -> dict[str, int]:
-        """
-        Sync-обёртка для Celery.
-
-        tasks.py использует этот метод.
-        """
-        return asyncio.run(self.generate_for_news_items(items))
 
     async def generate_for_news_items(
             self,
@@ -120,7 +108,7 @@ class GenerationService:
                 continue
 
             try:
-                # batch вызывает внутренний helper напрямую,
+                # batch вызывает внутренний helper напрямую
                 post_item = await self._generate_from_news_item(item)
             except Exception as exc:
                 summary["failed"] += 1
@@ -164,8 +152,6 @@ class GenerationService:
     async def _generate_from_news_item(self, news_item: NewsItem) -> PostItem:
         """
         Внутренняя общая логика генерации поста по уже найденной новости.
-
-        вынесено в отдельный helper, чтобы не дублировал код
         """
         provider = self.ensure_provider_configured()
 

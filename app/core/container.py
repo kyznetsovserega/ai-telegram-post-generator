@@ -5,7 +5,6 @@ from functools import lru_cache
 from app.ai.factory import build_text_generation_client
 from app.ai.generator import PostGenerator
 from app.news_parser.sites import (
-    available_sites,
     available_source_items,
     collect_from_sites, available_source_ids,
 )
@@ -49,7 +48,7 @@ class Container:
         self.keyword_storage = get_keyword_storage()
         self.log_storage = get_log_storage()
 
-        # services
+        # --- services ---
         self.log_service = LogService(storage=self.log_storage)
 
         self.keyword_service = KeywordService(storage=self.keyword_storage)
@@ -94,3 +93,35 @@ def get_container() -> Container:
     Singleton container для API и Celery-задач.
     """
     return Container()
+
+
+def get_log_service() -> LogService:
+    return get_container().log_service
+
+
+def get_keyword_service() -> KeywordService:
+    return get_container().keyword_service
+
+
+def get_filter_service() -> FilterService:
+    return get_container().filter_service
+
+
+def get_source_service() -> SourceService:
+    return get_container().source_service
+
+
+def get_news_service() -> NewsService:
+    return get_container().news_service
+
+
+def get_post_service() -> PostService:
+    return get_container().post_service
+
+
+def get_generation_service() -> GenerationService:
+    return get_container().generation_service
+
+
+def get_publish_service() -> PublishService:
+    return get_container().publish_service

@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Query, Depends
 
+from app.api.dependencies.services import get_log_service
 from app.api.schemas import LogItemResponse, LogListResponse
 from app.services.log_service import LogService
-from app.api.dependencies.services import get_log_service
 
 router = APIRouter()
 

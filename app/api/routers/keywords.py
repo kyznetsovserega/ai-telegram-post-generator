@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, status, Depends
 
+from app.api.dependencies.services import get_keyword_service
 from app.api.errors import raise_api_error
 from app.api.schemas import (
     KeywordCreateRequest,
@@ -10,7 +11,6 @@ from app.api.schemas import (
 )
 from app.models import KeywordType
 from app.services import KeywordService
-from app.api.dependencies.services import get_keyword_service
 
 router = APIRouter()
 

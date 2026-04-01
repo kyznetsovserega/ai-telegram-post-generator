@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 
+from app.api.dependencies.services import get_post_service
 from app.api.schemas import PostHistoryItemResponse, PostHistoryListResponse
 from app.services import PostService
-from app.api.dependencies.services import get_post_service
 
 router = APIRouter()
 

@@ -1,11 +1,11 @@
 from fastapi import APIRouter
 
-from app.api.routers.sources import router as sources_router
-from app.api.routers.keywords import router as keywords_router
-from app.api.routers.generate import router as generate_router
 from app.api.routers.collect import router as collect_router
-from app.api.routers.posts import router as posts_router
+from app.api.routers.generate import router as generate_router
+from app.api.routers.keywords import router as keywords_router
 from app.api.routers.logs import router as logs_router
+from app.api.routers.posts import router as posts_router
+from app.api.routers.sources import router as sources_router
 from .news import router as news_router
 
 router = APIRouter()

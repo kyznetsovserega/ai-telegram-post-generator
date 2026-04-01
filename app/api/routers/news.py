@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 
-from app.api.schemas import NewsItemResponse, NewsListResponse
 from app.api.dependencies.services import get_news_service
+from app.api.schemas import NewsItemResponse, NewsListResponse
 from app.services.news_service import NewsService
 
 router = APIRouter()

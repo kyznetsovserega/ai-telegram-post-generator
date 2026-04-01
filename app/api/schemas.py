@@ -166,7 +166,7 @@ class SourceUpdateRequest(BaseModel):
         return normalized
 
 
-# --- Keyword management API ---
+# --- Keyword ---
 class KeywordItemResponse(BaseModel):
     value: str
     type: KeywordType

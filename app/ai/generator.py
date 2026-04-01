@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-
 from dataclasses import dataclass
 
 from app.ai.base import TextGenerationClient
@@ -155,18 +154,18 @@ class PostGenerator:
         cleaned = sanitize_llm_output(text)
 
         return f"""
-Исправь текст ниже.
-
-Требования:
-- раздели склеенные слова
-- сделай читаемый русский текст
-- 2–4 коротких предложения
-- один абзац
-- не добавляй новых фактов
-
-Текст:
-{cleaned}
-"""
+                Исправь текст ниже.
+                
+                Требования:
+                - раздели склеенные слова
+                - сделай читаемый русский текст
+                - 2–4 коротких предложения
+                - один абзац
+                - не добавляй новых фактов
+                
+                Текст:
+                {cleaned}
+                """
 
     @staticmethod
     def _normalize_input_news(input_text: str) -> str:

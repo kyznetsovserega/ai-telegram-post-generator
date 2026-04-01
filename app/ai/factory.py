@@ -2,10 +2,13 @@ from __future__ import annotations
 
 from app import config
 from app.ai.base import TextGenerationClient
-from app.ai.gemini_client import GeminiClientConfig,GeminiTextClient
-from app.ai.openai_client import OpenAIClientConfig,OpenAITextClient
+from app.ai.gemini_client import GeminiClientConfig, GeminiTextClient
+from app.ai.openai_client import OpenAIClientConfig, OpenAITextClient
+
 
 def build_text_generation_client() -> TextGenerationClient:
+    """Фабрика выбора LLM-провайдера."""
+
     provider = config.LLM_PROVIDER.lower()
 
     if provider == "openai":

@@ -1,18 +1,17 @@
+from __future__ import annotations
+
 import re
 
 
 class LLMOutputError(ValueError):
-    """ Поднимается, когда вывод LLM недействителен. """
+    """Ошибка валидации ответа LLM."""
 
 
 def sanitize_llm_output(text: str) -> str:
-    """
-    Базовая очистка вывода LLM.
-    """
+    """Очистка текста от мусора LLM."""
 
     text = text.strip()
 
-    # удалить общие префиксы из LLms
     prefixes = [
         "here is the telegram post:",
         "telegram post:",
@@ -26,16 +25,14 @@ def sanitize_llm_output(text: str) -> str:
             text = text[len(p):].strip()
             break
 
-    # нормализовать пробелы
     text = re.sub(r"\s+", " ", text)
 
     return text
 
 
 def validate_llm_output(text: str) -> None:
-    """
-    Убедиться, что выходные данные LLM приемлемы.
-    """
+    """Валидация результата генерации."""
+
     if not text:
         raise LLMOutputError("LLM returned empty text")
     if len(text) < 20:

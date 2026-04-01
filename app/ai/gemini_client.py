@@ -15,6 +15,8 @@ class GeminiClientConfig:
 
 
 class GeminiTextClient(TextGenerationClient):
+    """Async клиент для Gemini."""
+
     def __init__(self, config: GeminiClientConfig) -> None:
         self._config = config
         self._client = genai.Client(api_key=config.api_key)

@@ -6,12 +6,12 @@ class AiGenerationError(Exception):
 
 
 class AiRateLimitError(AiGenerationError):
-    """Провайдер отклонил запрос из-за лимитов или квоты."""
+    """Превышен лимит запросов/квоты."""
 
 
 class AiTemporaryUnavailableError(AiGenerationError):
-    """Временная ошибка сети, timeout или недоступность провайдера."""
+    """Временная недоступность провайдера или timeout."""
 
 
 class AiProviderResponseError(AiGenerationError):
-    """Провайдер вернул некорректный или неожиданный ответ."""
+    """Некорректный ответ от провайдера."""

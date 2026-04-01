@@ -65,10 +65,75 @@ Pipeline построен на основе статусов сущностей 
 
 ## Пример жизненного цикла новости
 
-1. Collect -> новость сохраняется со статусом `new`
-2. Filter -> становится `filtered` или `dropped`
-3. Generate -> создаётся Post (`generated`)
-4. Publish -> отправка в Telegram (`published`)
+<details>
+
+1. Source
+   Источник (RSS или Telegram-канал) включён в системе и доступен для сбора.
+
+2. Collect
+   Парсер забирает данные из источника и преобразует их в NewsItem:
+   - title
+   - url
+   - summary
+   - source
+   - published_at
+   - raw_text (если есть)
+
+   На этом этапе новость получает статус: `new`
+
+3. Filter
+   NewsItem проходит цепочку фильтров:
+   - source filter
+   - language filter
+   - dedup filter
+   - keyword filter
+
+   Результат:
+   - если новость релевантна → статус `filtered`
+   - если отклонена → статус `dropped`
+
+4. Generate
+   Для новостей со статусом filtered вызывается LLM.
+   На основе NewsItem создаётся PostItem.
+
+   Результат:
+   - создаётся PostItem со статусом `generated`
+
+5. Publish
+   PublishService берёт только PostItem со статусом generated
+   и отправляет их в Telegram через Telethon.
+
+   Результат:
+   - PostItem получает status = `published`
+   - сохраняется external_message_id
+   - published_at заполняется временем публикации
+
+   Если публикация завершается ошибкой:
+   - PostItem получает status = `failed`
+
+</details>
+
+<details> <summary><strong>Схема: Трансформация данных в pipeline</strong></summary> <br>
+
+Source
+  ↓
+Collect
+  ↓
+NewsItem(status=new)
+  ↓
+Filter
+  ├─ accepted  → NewsItem(status=filtered)
+  └─ rejected  → NewsItem(status=dropped)
+  ↓
+Generate
+  ↓
+PostItem(status=generated)
+  ↓
+Publish
+  ├─ success → PostItem(status=published)
+  └─ error   → PostItem(status=failed)
+
+</details>
 
 ---
 
@@ -440,6 +505,13 @@ python -c "from app.tasks import collect_sites_task, filter_news_task, generate_
 ---
 
 ## Основные API endpoints
+
+### API prefix
+
+Все эндпоинты доступны под префиксом `/api`.
+
+Versioning (`/api/v1`) не используется, так как в проекте одна актуальная версия API.  
+При необходимости его можно добавить через router prefix без изменения логики приложения.
 
 ### System
 

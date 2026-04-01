@@ -448,6 +448,12 @@ uvicorn app.main:app --reload
 - OpenAPI schema: `http://127.0.0.1:8000/openapi.json`
 - Health endpoint: `http://127.0.0.1:8000/health`
 
+### 5. Запуск Celery Worker
+
+```bash
+celery -A app.celery_app:celery_app worker --pool=solo --loglevel=info
+```
+
 ### Telegram авторизация (Telethon)
 
 Перед использованием функций публикации и парсинга Telegram-каналов 
@@ -468,13 +474,7 @@ python -c "from app.telegram.publisher import TelegramPublisher; TelegramPublish
 
 повторная авторизация НЕ требуется
 Celery worker и beat используют .session автоматически
-публикация работает без ввода кода
-
-### 5. Запуск Celery Worker
-
-```bash
-celery -A app.celery_app:celery_app worker --pool=solo --loglevel=info
-```
+публикация работает без ввода кода.
 
 ### 6. Запуск Celery Beat
 

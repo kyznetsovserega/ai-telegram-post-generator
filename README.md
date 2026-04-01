@@ -1,191 +1,542 @@
-# AI-генератор постов для Telegram
+# AI Telegram Post Generator
 
-Сервис автоматизирует MVP pipeline для новостного Telegram-канала:
+Автоматизированный сервис для сбора новостей, фильтрации, AI-генерации постов и публикации в Telegram-канал.
 
-- собирает новости из внешних источников
-- фильтрует новости
-- генерирует посты через AI
-- публикует готовые посты в Telegram
+Проект реализует полный pipeline обработки контента:
+
+```text
+collect -> filter -> generate -> publish
+```
 
 ---
 
-## Реализовано
+## Возможности
 
-- FastAPI-приложение с `/docs` и health endpoint
-- сбор новостей с Habr RSS
-- JSONL storage для новостей и постов
-- AI generation через OpenAI и Gemini
-- abstraction layer для LLM:
-  - `TextGenerationClient`
-  - factory
-  - `PostGenerator`
-- Celery + Redis
-- Celery Beat
-- pipeline: `collect -> filter -> generate -> publish`
-- публикация в Telegram через Telethon
-- history API: `GET /api/posts`
-- сохранение `external_message_id` после публикации
+- Сбор новостей с RSS-источников и Telegram-каналов
+- Фильтрация по ключевым словам, источникам, языку и дедупликация
+- Генерация Telegram-постов через LLM (OpenAI / Gemini)
+- Публикация в Telegram через Telethon
+- Автоматический запуск pipeline через Celery Beat
+- REST API для управления источниками, keywords, просмотра новостей, постов и логов
+- Переключаемый storage backend: JSONL или Redis
+
+---
+
+## Основная идея проекта
+
+<details> <summary><strong>Сервис автоматизирует работу новостного Telegram-канала:</strong></summary> <br>
+
+1. собирает свежие материалы из внешних источников;
+2. отбирает только релевантные новости;
+3. генерирует краткие посты в формате Telegram;
+4. публикует результат в канал;
+5. позволяет управлять всем процессом через FastAPI API.
+
+Pipeline построен на основе статусов сущностей и orchestrated через Celery chain.
+
+</details>
+
+---
+
+## Pipeline обработки
+
+### Этапы
+
+1. **Collect** 
+   - парсинг RSS и Telegram-каналов;
+   - нормализация данных в `NewsItem`;
+   - сохранение новостей в storage.
+
+2. **Filter** 
+   - include / exclude keyword filtering;
+   - source filtering;
+   - language filtering;
+   - дедупликация.
+
+3. **Generate**
+   - генерация текста поста через LLM;
+   - валидация результата;
+   - защита от повторной генерации.
+
+4. **Publish**
+   - отправка постов в Telegram;
+   - idempotent publish;
+   - обновление статусов и `external_message_id`.
+
+## Пример жизненного цикла новости
+
+1. Collect -> новость сохраняется со статусом `new`
+2. Filter -> становится `filtered` или `dropped`
+3. Generate -> создаётся Post (`generated`)
+4. Publish -> отправка в Telegram (`published`)
 
 ---
 
 ## Архитектура
 
-Pipeline построен через Celery chain:
+Проект разделён на несколько слоёв:
 
-collect → filter → generate → publish
-
-### Этапы:
-
-1. **Collect**
-   - сбор новостей (например Habr RSS)
-
-2. **Filter**
-   - отбор релевантных новостей
-
-3. **Generate**
-   - генерация Telegram-постов через AI (OpenAI / Gemini)
-
-4. **Publish**
-   - публикация в Telegram через Telethon
+- **API слой** — FastAPI routers, schemas, error handling, dependencies
+- **Service слой** — бизнес-логика проекта
+- **Storage слой** — работа с данными через factory
+- **Tasks слой** — Celery pipeline и orchestration
+- **AI слой** — интеграция с OpenAI / Gemini
+- **Parser слой** — RSS и Telegram parsing
+- **Infrastructure слой** — конфиг, DI, Celery, Redis
 
 ---
 
-## Технологии
+## Поддерживаемые источники
 
-- FastAPI
-- Celery
-- Redis
-- Telethon
-- OpenAI API
-- Google Gemini API
-- Pydantic
-- JSONL storage (MVP)
+### RSS
 
----
+- Habr
+- RBC
+- VC
+- Tproger
 
-## Установка
+### Telegram
 
-```bash
-git clone https://github.com/your-repo/ai-telegram-post-generator.git
-cd ai-telegram-post-generator
-
-python -m venv venv
-venv\Scripts\activate  # Windows
-
-pip install -r requirements.txt
-```
+- публичные Telegram-каналы (`tg:*`)
 
 ---
 
-## Настройка окружения
-
-Создай файл .env на основе .env.example.
-
-```env
-CELERY_BROKER_URL=redis://localhost:6379/0
-CELERY_RESULT_BACKEND=redis://localhost:6379/0
-FASTAPI_BASE_URL=http://127.0.0.1:8000
-COLLECT_SITES_DEFAULT=habr
-
-LLM_PROVIDER=gemini
-
-OPENAI_API_KEY=
-OPENAI_MODEL=gpt-5.2
-
-GEMINI_API_KEY=
-GEMINI_MODEL=gemini-2.5-flash
-
-TELEGRAM_CHANNEL=https://t.me/link
-
-TELEGRAM_API_ID=
-TELEGRAM_API_HASH=
-TELEGRAM_SESSION_NAME=telegram_publisher
-```
----
-
-## Запуск проекта
-
-1. Redis
-```bash
-docker-compose -f docker-compose.redis.yml up -d
-```
-2. FastAPI
-```bash
-uvicorn app.main:app --reload
-```
-  Swagger UI будет доступен по адресу:
-http://127.0.0.1:8000/docs
-3. Celery worker
-```bash
-celery -A app.tasks worker --loglevel=info
-```
-4. Celery Beat
-```bash
-celery -A app.tasks beat --loglevel=info
-```
----
-
-## Pipeline
-
-Запуск вручную:
-```
-POST /api/collect/sites
-POST /api/generate/from-news
-```
-через Celery:
-```
-pipeline_chain_task
-```
-В pipeline входят этапы:
-- collect_sites_task
-- filter_news_task
-- generate_posts_task
-- publish_posts_task
-
----
-
-## API
-
-Service endpoints
-- *GET /health* — проверка состояния сервиса
-- *GET /api/posts* — история сгенерированных и опубликованных постов
-
-Документация API
-- *Swagger UI: /docs*
-- *OpenAPI schema: /openapi.json*
-
----
-
-## AI слой
+## AI-генерация
 
 Поддерживаются провайдеры:
-- OpenAI
-- Gemini
 
-Архитектура:
-- TextGenerationClient (protocol)
-- factory
-- generator
-  (позволяет переключать AI provider без переписывания бизнес-логики)
+- OpenAI
+- Google Gemini
+
+Архитектура AI-слоя:
+
+- `TextGenerationClient` / интерфейсы
+- factory (`app/ai/factory.py`)
+- провайдеры (`openai_client.py`, `gemini_client.py`)
+- валидация и retry
+
+Особенности:
+
+- retry при временных ошибках;
+- защита от невалидного ответа модели;
+- нормализация и валидация текста;
+- ручное тестирование генерации через API.
 
 ---
 
-## Telegram publish
+## Публикация в Telegram
 
-Для публикации используется Telethon.
+Публикация реализована через Telethon.
 
-Текущие возможности publish stage:
-- синхронная публикация
-- async публикация
-- публикация через pipeline
-- сохранение external_message_id
-- обновление статуса поста после успешной публикации
-- перевод поста в FAILED при ошибке публикации
+Поддерживается:
+
+- отправка постов в канал;
+- сохранение `external_message_id`;
+- защита от повторной публикации;
+- обновление статусов поста после publish stage.
 
 ---
 
 ## Хранилище данных
 
-Используется JSONL storage:
-- data/news.jsonl
-- data/posts.jsonl
+Поддерживаются backend'ы:
+
+- `jsonl`
+- `redis`
+
+Переключение backend'а выполняется через переменную окружения:
+
+```env
+STORAGE_BACKEND=jsonl
+# или
+STORAGE_BACKEND=redis
+```
+
+Реализовано через factory в `app/storage/__init__.py`.
+
+---
+
+## Статусы сущностей
+
+### News
+
+- `new`
+- `filtered`
+- `dropped`
+- `generated`
+
+### Post
+
+- `new`
+- `generated`
+- `published`
+- `failed`
+
+---
+
+## Структура проекта
+
+<details>
+
+```text
+AI Telegram Post Generator
+│
+├── app/
+│   ├── __init__.py                         
+│   ├── celery_app.py                 # настройка Celery и Celery Beat          
+│   ├── config.py                     # загрузка конфигурации из .env      
+│   ├── main.py                       # точка входа FastAPI, регистрация роутеров и /health 
+│   ├── models.py                     # доменные модели (News, Post, Source, Keyword, Log)                 
+│   │                                       
+│   ├── ai/                           # AI слой    
+│   │   ├── base.py                   # интерфейс LLM-клиента (контракт)             
+│   │   ├── errors.py                 # типизация и обработка ошибок AI                
+│   │   ├── factory.py                # выбор провайдера (OpenAI / Gemini)                 
+│   │   ├── gemini_client.py          # клиент Gemini API                                                 
+│   │   ├── generator.py              # orchestration генерации (retry, fallback)                                             
+│   │   ├── openai_client.py          # клиент OpenAI API                                                 
+│   │   └── validators.py             # валидация и нормализация текста                                              
+│   │                                                           
+│   ├── api/                          # API слой                                  
+│   │   ├── __init__.py               # инициализация API модуля                                              
+│   │   ├── errors.py                 # единый формат ошибок API                                            
+│   │   ├── schemas.py                # Pydantic схемы (request/response)                                             
+│   │   ├── dependencies/             # DI слой                                                         
+│   │   │   └── services.py           # прокидывание сервисов через Depends  
+│   │   │                                                        
+│   │   └── routers/                  # роутеры API                                                   
+│   │       ├── __init__.py           # регистрация роутеров                                                          
+│   │       ├── collect.py            # endpoint для запуска сбора новостей                                                         
+│   │       ├── generate.py           # endpoint генерации постов                                                          
+│   │       ├── keywords.py           # CRUD для keyword-фильтров                                                          
+│   │       ├── logs.py               # получение логов                                                      
+│   │       ├── news.py               # получение списка новостей                                                      
+│   │       ├── posts.py              # получение постов                                                      
+│   │       └── sources.py            # управление источниками                                                         
+│   │                                                                    
+│   ├── core/                         # инфраструктура                                            
+│   │   └── container.py              # DI-контейнер (сборка сервисов и storage)                                                       
+│   │                                                                  
+│   ├── news_parser/                  # слой парсинга                                                   
+│   │   ├── __init__.py               # инициализация модуля                                                      
+│   │   ├── sites.py                  # registry парсеров + orchestration сбора 
+│   │   │                                                 
+│   │   └── sources/                  # реализации парсеров                                                   
+│   │       ├── __init__.py                                                                 
+│   │       ├── habr.py               # RSS парсер Habr                                                      
+│   │       ├── rbc.py                # RSS парсер RBC                                                     
+│   │       ├── rss_common.py         # общая логика RSS (fetch, parse, normalize)                                                           
+│   │       ├── telegram_channels.py  # парсер Telegram-каналов (Telethon)                                                                                                                                                             
+│   │       ├── tproger.py            # RSS парсер Tproger                                                                                                                                                   
+│   │       └── vc.py                 # RSS парсер VC                                                                                                                                              
+│   │                                                                                                                                                             
+│   ├── services/                     # бизнес-логика                                                                                                                                         
+│   │   ├── __init__.py               # экспорт сервисов                                                                                                                                                             
+│   │   ├── filter_service.py         # orchestration фильтрации (pipeline правил)                                                                                                                                                     
+│   │   ├── generation_service.py     # генерация постов через LLM + batch                                                                                                                                                         
+│   │   ├── keyword_service.py        # управление include/exclude keywords                                                                                                                                                      
+│   │   ├── log_service.py            # централизованное логирование                                                                                                                                                  
+│   │   ├── news_service.py           # сбор, нормализация и сохранение новостей                                                                                                                                                   
+│   │   ├── post_service.py           # работа с постами (read/update)                                                                                                                                                   
+│   │   ├── publish_service.py        # публикация постов + обновление статусов                                                                                                                                                       
+│   │   ├── source_service.py         # управление источниками (catalog + user sources)     
+│   │   │                                                                                                                                                 
+│   │   └── filters/                  # набор фильтров (Strategy pattern)                                                                                                                                             
+│   │       ├── __init__.py           # экспорт фильтров                                                                                                                                                    
+│   │       ├── base.py               # базовые абстракции (FilterRule, FilterContext)                                                                                                                                                
+│   │       ├── dedup_filter.py       # дедупликация внутри батча                                                                                                                                                       
+│   │       ├── keyword_filter.py     # include/exclude фильтрация                                                                                                                                                          
+│   │       ├── language_filter.py    # фильтрация по языку                                                                                                                                                           
+│   │       └── source_filter.py      # фильтрация по источникам                                                                                                                                                         
+│   │
+│   ├── storage/                      # слой хранения 
+│   │   ├── __init__.py               # factory (jsonl ↔ redis)                          
+│   │   ├── keywords.py               # хранение keyword-фильтров                          
+│   │   ├── logs.py                   # хранение логов                     
+│   │   ├── news.py                   # хранение новостей + дедупликация                     
+│   │   ├── posts.py                  # хранение постов                      
+│   │   ├── redis_client.py           # клиент Redis (connection + helpers)                              
+│   │   └── sources.py                # хранение источников                                           
+│   │                                         
+│   ├── tasks/                        # Celery pipeline                                                                                                     
+│   │   ├── __init__.py               # регистрация задач                                                                                                                        
+│   │   ├── collect.py                # задача сбора новостей                                                                                                            
+│   │   ├── filter.py                 # задача фильтрации                                                                                                          
+│   │   ├── generate.py               # задача генерации постов                                                                                                            
+│   │   ├── pipeline.py               # orchestration pipeline (Celery chain)                                                                                                           
+│   │   ├── publish.py                # задача публикации                                                                                                            
+│   │   └── task_helpers.py           # sync/async bridge + вспомогательные утилиты                                                                                                                
+│   │                                                                                                                          
+│   └── telegram/                     # интеграция с Telegram                                                                                                       
+│       ├── __init__.py               # экспорт модуля                                                                                                             
+│       └── publisher.py              # публикация постов через Telethon                                                                                                              
+│                                                                                                                                
+├── celery_worker.py                  # точка входа для Celery worker                                                                                                         
+├── docker-compose.redis.yml          # запуск Redis (broker + storage)                                                                                                                  
+├── requirements.txt                  # зависимости проекта              
+├── README.md                         # документация проекта        
+├── .gitignore                        # исключения Git                                
+└── .env.example                      # пример конфигурации 
+```
+**Celery использует sync-подход (через asyncio.run в задачах)**
+
+## Почему так спроектировано
+
+- Celery используется для выполнения pipeline вне API, чтобы не блокировать запросы
+- FastAPI остаётся async, Celery — sync (упрощает worker и делает систему стабильнее)
+- Storage реализован через factory -> можно менять backend без изменения бизнес-логики
+- Фильтрация построена через Strategy pattern ->  легко добавлять новые правила
+- Генерация и публикация разделены -> независимые этапы с разными зонами ответственности
+- Pipeline построен через статусы сущностей -> проще отслеживать состояние системы
+
+</details>
+
+---
+
+## Конфигурация окружения
+
+Создай `.env` на основе `.env.example`.
+
+Пример:
+
+```env
+# Celery / Redis
+CELERY_BROKER_URL=redis://localhost:6379/0
+CELERY_RESULT_BACKEND=redis://localhost:6379/0
+APP_REDIS_URL=redis://localhost:6379/0
+
+# Storage backend
+STORAGE_BACKEND=redis
+
+# API
+FASTAPI_BASE_URL=http://127.0.0.1:8000
+
+# Collect defaults
+COLLECT_SITES_DEFAULT=habr
+
+# Filter
+FILTER_INCLUDE_KEYWORDS=ai,llm,gpt,openai,gemini,python,fastapi,telegram,devops,docker,redis,celery
+FILTER_EXCLUDE_KEYWORDS=
+
+# LLM
+LLM_PROVIDER=gemini
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-5.2
+GEMINI_API_KEY=
+GEMINI_MODEL=gemini-2.5-flash
+
+# Telegram publish
+TELEGRAM_CHANNEL=https://t.me/link
+TELEGRAM_API_ID=
+TELEGRAM_API_HASH=
+TELEGRAM_SESSION_NAME=telegram_publisher
+
+# Telegram ingest
+TELEGRAM_PARSER_SESSION_NAME=telegram_parser
+TELEGRAM_SOURCE_CHANNELS=thehackernews,itsfoss_official
+```
+
+---
+
+## Запуск проекта
+
+### 1. Клонирование и окружение
+
+```bash
+git clone https://github.com/kyznetsovserega/ai-telegram-post-generator.git
+cd ai-telegram-post-generator
+python -m venv .venv
+```
+
+#### Windows PowerShell
+
+```powershell
+.venv\Scripts\Activate.ps1
+```
+
+#### Linux / macOS
+
+```bash
+source .venv/bin/activate
+```
+
+### 2. Установка зависимостей
+
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Запуск Redis
+
+```bash
+docker compose -f docker-compose.redis.yml up -d
+```
+
+### 4. Запуск FastAPI
+
+```bash
+uvicorn app.main:app --reload
+```
+
+После запуска доступны:
+
+- Swagger UI: `http://127.0.0.1:8000/docs`
+- OpenAPI schema: `http://127.0.0.1:8000/openapi.json`
+- Health endpoint: `http://127.0.0.1:8000/health`
+
+### 5. Запуск Celery Worker
+
+```bash
+celery -A app.celery_app:celery_app worker --pool=solo --loglevel=info
+```
+
+### 6. Запуск Celery Beat
+
+```bash
+celery -A app.celery_app:celery_app beat --loglevel=info
+```
+
+Для Windows параметр `--pool=solo` обязателен.
+
+---
+
+## Проверка работоспособности
+
+### Проверка импортов и синтаксиса
+
+```bash
+python -m compileall app
+```
+
+### Проверка health endpoint
+
+```bash
+curl http://127.0.0.1:8000/health
+```
+
+Ожидаемый ответ:
+
+```json
+{
+   "status": "ok",
+   "storage_backend": "redis",
+   "llm_provider": "gemini",
+   "redis_configured": true
+}
+```
+
+### Проверка Celery
+
+```bash
+python -c "from app.tasks import ping; print(ping())"
+```
+
+### Проверка pipeline
+
+```bash
+python -c "from app.tasks import collect_sites_task, filter_news_task, generate_posts_task, publish_posts_task; print(collect_sites_task()); print(filter_news_task()); print(generate_posts_task()); print(publish_posts_task())"
+```
+
+---
+
+## Основные API endpoints
+
+### System
+
+- `GET /health` — проверка состояния сервиса
+
+### Collect
+
+- `POST /api/collect/sites` — собрать новости по списку источников
+
+### Generate
+
+- `POST /api/generate/` — сгенерировать пост из произвольного текста
+- `POST /api/generate/from-news` — сгенерировать пост по `news_id`
+
+### Sources
+
+- `GET /api/sources` — список источников
+- `POST /api/sources` — создать пользовательский источник
+- `PATCH /api/sources/{source_id}` — обновить источник
+- `DELETE /api/sources/{source_id}` — удалить пользовательский источник
+
+### Keywords
+
+- `GET /api/keywords` — список keywords
+- `POST /api/keywords` — добавить keyword
+- `DELETE /api/keywords/{keyword_type}/{value}` — удалить keyword
+
+### News
+
+- `GET /api/news` — история news
+
+### Posts
+
+- `GET /api/posts` — история сгенерированных и опубликованных постов
+
+### Logs
+
+- `GET /api/logs` — просмотр логов
+
+Поддерживаются query-параметры:
+
+- `level`
+- `source`
+- `limit`
+
+---
+
+## Примеры запросов
+
+### Сбор новостей
+
+```bash
+curl -X POST "http://127.0.0.1:8000/api/collect/sites" \
+  -H "Content-Type: application/json" \
+  -d '{"sites":["habr","vc"],"limit_per_site":3}'
+```
+
+### Генерация поста по новости
+
+```bash
+curl -X POST "http://127.0.0.1:8000/api/generate/from-news" \
+  -H "Content-Type: application/json" \
+  -d '{"news_id":"<news_id>"}'
+```
+
+### Добавление keyword
+
+```bash
+curl -X POST "http://127.0.0.1:8000/api/keywords" \
+  -H "Content-Type: application/json" \
+  -d '{"value":"python","type":"include"}'
+```
+
+### Получение истории постов
+
+```bash
+curl "http://127.0.0.1:8000/api/posts"
+```
+
+---
+
+## Ключевые архитектурные решения
+
+- Архитектура построена слоями: API, services, storage, tasks, AI, parsers.
+- Pipeline разделён на независимые этапы: collect, filter, generate, publish.
+- Фильтрация реализована через Strategy pattern.
+- Storage слой абстрагирован через factory.
+- Генерация и публикация разведены по сервисам с чётким разделением ответственности.
+- FastAPI async и Celery sync разделены осознанно для стабильности pipeline.
+
+---
+
+## Автор
+
+Сергей Кузнецов  
+[GitHub — @kyznetsovserega](https://github.com/kyznetsovserega)
+
+---
+
+Учебный проект: **AI-генератор постов для Telegram**

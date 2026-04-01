@@ -3,12 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 
 from app.config import STORAGE_BACKEND
-
 from app.storage.keywords import JsonlKeywordStorage, RedisKeywordStorage
+from app.storage.logs import JsonlLogStorage, RedisLogStorage, LogStorageProtocol
 from app.storage.news import RedisNewsStorage, JsonlNewsStorage
 from app.storage.posts import JsonlPostStorage, RedisPostStorage
 from app.storage.sources import JsonlSourceStorage, RedisSourceStorage
-from app.storage.logs import JsonlLogStorage, RedisLogStorage, LogStorageProtocol
 
 
 def get_storage_backend() -> str:

@@ -76,9 +76,7 @@ class JsonlPostStorage:
         ]
 
     def update(self, post: PostItem) -> None:
-        """
-        Обновляет существующий пост по id.
-        """
+        """ Обновляет существующий пост по id. """
         items = self.list_all()
 
         updated = False
@@ -176,9 +174,7 @@ class RedisPostStorage:
         ]
 
     def update(self, post: PostItem) -> None:
-        """
-        Обновляет существующий пост по id.
-        """
+        """ Обновляет существующий пост по id. """
         existing = self.get_by_id(post.id)
         if existing is None:
             raise LookupError(f"Post not found: {post.id}")

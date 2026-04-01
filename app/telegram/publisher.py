@@ -51,7 +51,7 @@ class TelegramPublisher:
                 return message
 
         try:
-            # свой event loop
+            # создаём отдельный event loop под Celery-задачу
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
 
@@ -71,4 +71,5 @@ class TelegramPublisher:
             )
 
         finally:
-            loop.close()
+            if loop is not None:
+                loop.close()

@@ -30,16 +30,12 @@ from app.telegram.publisher import TelegramPublisher
 
 
 def build_post_generator() -> PostGenerator:
-    """
-    Создаём PostGenerator через factory AI-клиента.
-    """
+    """Создаём PostGenerator через factory AI-клиента."""
     return PostGenerator(client=build_text_generation_client())
 
 
 class Container:
-    """
-    Централизованный контейнер зависимостей приложения.
-    """
+    """Централизованный контейнер зависимостей приложения."""
 
     def __init__(self) -> None:
         # storages
@@ -91,9 +87,7 @@ class Container:
 
 @lru_cache(maxsize=1)
 def get_container() -> Container:
-    """
-    Singleton container для API и Celery-задач.
-    """
+    """Возвращает singleton-контейнер для API и Celery-задач."""
     return Container()
 
 

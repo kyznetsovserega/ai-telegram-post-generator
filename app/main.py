@@ -9,10 +9,11 @@ def create_app() -> FastAPI:
     """
     Фабрика FastAPI-приложения.
 
-    - метаданные приложения
-    - подключение общих handlers
-    - регистрацию роутеров
-    - системные маршруты
+    Отвечает за:
+    - метаданные приложения;
+    - подключение общих exception handlers;
+    - регистрацию роутеров;
+    - системные маршруты.
     """
     app = FastAPI(
         title="AI Telegram Post Generator",
@@ -26,21 +27,18 @@ def create_app() -> FastAPI:
         """
         Информативный health endpoint.
 
-        - status
-        - storage_backend
-        - llm_provider
-        - redis_configured
+        Возвращает:
+        - status;
+        - storage_backend;
+        - llm_provider;
+        - redis_configured.
         """
         return {
             "status": "ok",
-            # текущий storage backend из config.py
             "storage_backend": STORAGE_BACKEND,
-            # текущего AI-провайдера из config.py
             "llm_provider": LLM_PROVIDER,
-            # признак настройки Redis, без вывода самого URL
             "redis_configured": bool(APP_REDIS_URL.strip()),
         }
-
 
     app.include_router(api_router, prefix="/api")
 

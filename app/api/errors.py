@@ -32,9 +32,7 @@ def raise_api_error(
 
 
 def raise_for_ai_error(exc: Exception) -> NoReturn:
-    """
-    Приводит ошибки AI-интеграции к единому API-формату с HTTP-статусами.
-    """
+    """Приводит ошибки AI-интеграции к единому API-формату."""
     if isinstance(exc, RuntimeError):
         raise_api_error(
             status_code=500,
@@ -86,9 +84,7 @@ def raise_for_ai_error(exc: Exception) -> NoReturn:
 
 
 def register_exception_handlers(app: FastAPI) -> None:
-    """
-    Подключает единые обработчики ошибок приложения.
-    """
+    """Подключает единые обработчики ошибок приложения."""
 
     @app.exception_handler(StarletteHTTPException)
     async def http_exception_handler(

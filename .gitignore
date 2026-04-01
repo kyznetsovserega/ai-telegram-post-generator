@@ -1,20 +1,39 @@
+# Python
 __pycache__/
-*.pyc
-.env
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual env
+.venv/
 venv/
-.idea/
+
+# Env
+.env
+
+# IDE
 .vscode/
+.idea/
 
-data/
+# OS
+.DS_Store
+Thumbs.db
 
-# Celery Beat schedule (local file)
+# Logs
+*.log
+
+# Celery
 celerybeat-schedule
-celerybeat-schedule-shm
-celerybeat-schedule-wal
 
-# Telethon session files
-telegram_publisher.session
-telegram_publisher.session-journal
+# Redis / data
+data/
+*.jsonl
 
+# Telegram sessions
 *.session
 *.session-journal
+
+# Build
+dist/
+build/
+*.egg-info/

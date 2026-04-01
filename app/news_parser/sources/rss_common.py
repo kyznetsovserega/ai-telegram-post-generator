@@ -5,11 +5,33 @@ from datetime import datetime, timezone
 from typing import Any
 
 import feedparser
+import httpx
 from bs4 import BeautifulSoup
 
 from app.models import NewsItem
 
+DEFAULT_TIMEOUT = 15.0
+DEFAULT_USER_AGENT = "ai-telegram-post-generator/0.1"
 
+
+# --- HTTP helper ---
+async def fetch_rss_xml(
+        url: str,
+        *,
+        timeout_s: float = DEFAULT_TIMEOUT,
+        user_agent: str = DEFAULT_USER_AGENT,
+) -> str:
+    async with httpx.AsyncClient(
+            timeout=timeout_s,
+            headers={"User-Agent": user_agent},
+            follow_redirects=True,
+    ) as client:
+        response = await client.get(url)
+        response.raise_for_status()
+        return response.text
+
+
+# --- utils ---
 def _strip_html(html: str) -> str:
     soup = BeautifulSoup(html or "", "html.parser")
     text = soup.get_text(" ", strip=True)
@@ -17,7 +39,7 @@ def _strip_html(html: str) -> str:
 
 
 def entry_to_datetime(entry: dict[str, Any]) -> datetime:
-    """ Пытаемся достать дату публикации из RSS. """
+    """Извлекает дату публикации из RSS entry."""
     tm = entry.get("published_parsed") or entry.get("updated_parsed")
     if tm:
         # tm — time.struct_time
@@ -41,14 +63,12 @@ def build_news_id(
         published_at: datetime,
         raw_text: str = "",
 ) -> str:
-    """
-    Создание стабильного идентификатора новостей
-    для дедупликации и хранения.
-    """
+    """Создание стабильного ID новости (для дедупликации)."""
     base = url or f"{source}|{title}|{published_at.isoformat()}|{raw_text[:200]}"
     return hashlib.sha256(base.encode("utf-8")).hexdigest()
 
 
+# --- main builder ---
 def build_rss_items(
         *,
         source: str,
@@ -69,6 +89,7 @@ def build_rss_items(
             continue
 
         published_at = entry_to_datetime(entry)
+
         news_id = build_news_id(
             source=source,
             title=title,

@@ -6,19 +6,20 @@ from app.config import TELEGRAM_SOURCE_CHANNELS
 from app.models import NewsItem, SourceItem, SourceType, LogItem, LogLevel
 from app.news_parser.sources.habr import HabrRssParser
 from app.news_parser.sources.rbc import RbcRssParser
-from app.news_parser.sources.vc import VcRssParser
-from app.news_parser.sources.tproger import TprogerRssParser
 from app.news_parser.sources.telegram_channels import TelegramChannelParser
-
-from app.storage import get_log_storage
+from app.news_parser.sources.tproger import TprogerRssParser
+from app.news_parser.sources.vc import VcRssParser
 from app.services.log_service import LogService
+from app.storage import get_log_storage
 
 
 class SiteParser(Protocol):
+    """Протокол для всех парсеров источников."""
     async def parse(self, limit: int = 20) -> list[NewsItem]:
         ...
 
 
+# --- встроенные парсеры ---
 _PARSERS: dict[str, SiteParser] = {
     "habr": HabrRssParser(),
     "rbc": RbcRssParser(),
@@ -26,6 +27,7 @@ _PARSERS: dict[str, SiteParser] = {
     "tproger": TprogerRssParser(),
 }
 
+# --- регистрация Telegram-каналов из config ---
 for channel_username in TELEGRAM_SOURCE_CHANNELS:
     normalized = channel_username.strip().lstrip("@").lower()
     if not normalized:
@@ -37,17 +39,19 @@ for channel_username in TELEGRAM_SOURCE_CHANNELS:
 
 
 def available_source_ids() -> list[str]:
+    """Список всех доступных source keys."""
     return sorted(_PARSERS.keys())
 
 
 def available_sites() -> list[str]:
-    """
-    Backward-compatible alias.
-    """
+    """Backward-compatible alias. """
     return available_source_ids()
 
 
 def available_source_items() -> list[SourceItem]:
+    """
+    Преобразует source keys → SourceItem.
+    """
     result: list[SourceItem] = []
 
     for key in available_source_ids():
@@ -78,8 +82,7 @@ def available_source_items() -> list[SourceItem]:
 
 def _build_dynamic_parser(source_key: str) -> SiteParser | None:
     """
-    Динамически создаёт parser для пользовательских источников,
-    если они не входят во встроенный каталог.
+    Динамически создаёт parser для пользовательских источников.
     """
     if source_key.startswith("tg:"):
         username = source_key.removeprefix("tg:").strip().lstrip("@").lower()
@@ -92,11 +95,14 @@ def _build_dynamic_parser(source_key: str) -> SiteParser | None:
 
 async def collect_from_sites(sites: list[str], limit_per_site: int = 20) -> list[NewsItem]:
     """
-    Собираем новости из указанных source keys.
-    Если один источник упал - пропускаем его.
-    Поддерживает:
-    - встроенные источники из каталога
-    - пользовательские TG-источники вида tg:<username>
+    Сбор новостей из списка источников.
+
+    Поддержка:
+    - встроенные источники
+    - пользовательские TG-каналы
+
+    Ошибки:
+    - падение одного источника не ломает весь pipeline
     """
     result: list[NewsItem] = []
 

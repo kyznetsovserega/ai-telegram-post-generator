@@ -9,7 +9,7 @@ DefaultKeywordsProvider = Callable[[], list[KeywordItem]]
 
 
 def build_default_keywords() -> list[KeywordItem]:
-    """Собирает стартовый набор keywords из конфигурации."""
+    """Стартовый keywords из config."""
     return [
         KeywordItem(value=value, type=KeywordType.INCLUDE)
         for value in FILTER_INCLUDE_KEYWORDS
@@ -20,19 +20,13 @@ def build_default_keywords() -> list[KeywordItem]:
 
 
 class KeywordService:
-    """ Сервис управления keyword-фильтрами. """
+    """ Сервис управления keywords. """
 
     def __init__(self, storage, default_keywords_provider=build_default_keywords):
         self.storage = storage
         self.default_keywords_provider = default_keywords_provider
 
     def list_all(self) -> list[KeywordItem]:
-        """
-        Возвращает все keywords.
-        Если storage пустой, синхронизирует его начальными
-        значениями из config.py.
-        """
-
         default_items = self.default_keywords_provider()
         self.storage.save_many(default_items)
         return self.storage.list_all()

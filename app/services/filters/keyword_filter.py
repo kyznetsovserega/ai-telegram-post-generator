@@ -5,9 +5,7 @@ from app.services.filters.base import FilterContext, FilterResult, FilterRule
 
 
 class KeywordFilter(FilterRule):
-    """
-    Фильтр по include / exclude keywords.
-    """
+    """ Фильтр по include / exclude keywords. """
 
     def apply(self, item: NewsItem, context: FilterContext) -> FilterResult:
         searchable_text = context.searchable_text

@@ -4,7 +4,7 @@ from app.models import LogItem
 
 
 class LogService:
-    """Сервис работы с логами."""
+    """Сервис логирования."""
 
     def __init__(self, storage):
         self.storage = storage
@@ -30,7 +30,6 @@ class LogService:
                    or getattr(log.level, "value", "").lower() == normalized_level
             ]
 
-        # фильтр по source
         if source is not None:
             normalized_source = source.strip()
             logs = [
@@ -39,10 +38,8 @@ class LogService:
                 if log.source == normalized_source
             ]
 
-        # newest first
         logs = sorted(logs, key=lambda item: item.created_at, reverse=True)
 
-        # limit
         if limit is not None:
             logs = logs[:limit]
 

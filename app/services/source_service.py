@@ -10,7 +10,15 @@ AvailableSourceItemsProvider = Callable[[], list[SourceItem]]
 
 
 class SourceService:
-    """ Сервис управления источниками. """
+    """
+    Сервис управления источниками.
+
+    Отвечает за:
+    - объединение catalog + storage;
+    - CRUD пользовательских источников;
+    - валидацию URL;
+    - нормализацию id.
+    """
 
     def __init__(self, storage, available_source_items_provider):
         self.storage = storage
@@ -18,11 +26,9 @@ class SourceService:
 
     def list_all(self) -> list[SourceItem]:
         """
-        Возвращает список источников.
-
-        - берем доступные источники (catalog)
-        - добавляем отсутствующие в storage
-        - возвращаем итоговый список из storage
+        Возвращает список источников:
+        - синхронизирует catalog → storage
+        - возвращает итоговый список
         """
         catalog_sources = self.available_source_items_provider()
         self.storage.save_many(catalog_sources)
@@ -50,12 +56,7 @@ class SourceService:
             source_id: str | None = None,
     ) -> SourceItem:
         """
-        Добавляет новый пользовательский источник.
-
-        - через API можно создавать и site, и tg источники
-        - id можно передать явно, но если его нет — генерируем автоматически
-        - для site валидируем URL
-        - для tg нормализуем id к формату tg:<slug>
+        Создание пользовательского источника.
         """
         normalized_name = name.strip()
         if not normalized_name:
@@ -92,10 +93,7 @@ class SourceService:
 
     def delete_source(self, source_id: str) -> None:
         """
-        Удаляет пользовательский источник.
-
-        Ограничение:
-        - встроенные catalog sources удалять нельзя
+        Удаление пользовательского источника.
         """
         catalog_ids = {item.id for item in self.available_source_items_provider()}
 
@@ -119,9 +117,6 @@ class SourceService:
     ) -> SourceItem:
         """
         Частичное обновление источника.
-
-        - update теперь валидирует site URL
-        - для tg url просто нормализуем строку
         """
         sources = self.list_all()
 
@@ -184,11 +179,6 @@ class SourceService:
     def _build_tg_id(self, source_id: str | None, name: str, url: str | None) -> str:
         """
         Для tg всегда храним id в формате tg:<slug>.
-        API может прислать:
-        - test-tg
-        - tg:test-tg
-        - @channel
-        - https://t.me/channel
         """
         raw = source_id or url or name
         raw = raw.strip()

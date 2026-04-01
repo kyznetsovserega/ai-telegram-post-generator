@@ -20,7 +20,15 @@ def build_post_generator() -> PostGenerator:
 
 
 class GenerationService:
-    """Сервис генерации Telegram-постов."""
+    """
+    Сервис генерации Telegram-постов.
+
+    Отвечает за:
+    - генерацию постов через LLM;
+    - дедупликацию (по news_id и тексту);
+    - batch-генерацию;
+    - логирование.
+    """
 
     def __init__(
             self,
@@ -36,6 +44,7 @@ class GenerationService:
 
     @staticmethod
     def ensure_provider_configured() -> str:
+        """Проверка конфигурации LLM-провайдера."""
         provider = config.LLM_PROVIDER.lower()
 
         if provider == "openai" and not config.OPENAI_API_KEY:
@@ -48,8 +57,7 @@ class GenerationService:
 
     async def generate_from_text(self, text: str) -> str:
         """
-        Async-метод для API-слоя.
-        Generate router вызывает этот метод через await.
+        Генерация поста из произвольного текста (API-слой).
         """
         self.ensure_provider_configured()
 
@@ -59,7 +67,7 @@ class GenerationService:
 
     async def generate_from_news(self, news_id: str) -> PostItem:
         """
-        Async-метод для API-слоя.
+        Генерация поста по news_id (API-слой).
         """
         news_item = self.news_storage.get_by_id(news_id)
         if news_item is None:
@@ -72,14 +80,13 @@ class GenerationService:
             items: list[NewsItem],
     ) -> dict[str, int]:
         """
-        Пакетная генерация постов для списка новостей.
+        Пакетная генерация постов.
 
-        Логика:
-        - если пост по news_id уже есть, считаем как skipped
-        - если генерация завершилась ошибкой, считаем как failed
-        - если сервис вернул пост не для текущего news_id
-          (например, из-за дедупликации по тексту), считаем как skipped
-        - только реально созданный пост для текущей новости считаем generated
+        Правила:
+        - уже есть пост → skipped
+        - ошибка → failed
+        - дедуп текста → skipped
+        - новый пост → generated
         """
         summary = {
             "total": len(items),
@@ -108,7 +115,6 @@ class GenerationService:
                 continue
 
             try:
-                # batch вызывает внутренний helper напрямую
                 post_item = await self._generate_from_news_item(item)
             except Exception as exc:
                 summary["failed"] += 1
@@ -151,7 +157,7 @@ class GenerationService:
 
     async def _generate_from_news_item(self, news_item: NewsItem) -> PostItem:
         """
-        Внутренняя общая логика генерации поста по уже найденной новости.
+        Общая логика генерации поста по новости.
         """
         provider = self.ensure_provider_configured()
 

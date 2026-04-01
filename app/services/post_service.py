@@ -4,7 +4,7 @@ from app.models import PostItem
 
 
 class PostService:
-    """Сервис работы с историей сгенерированных постов."""
+    """Сервис работы с постами."""
 
     def __init__(self, storage):
         self.storage = storage

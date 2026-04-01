@@ -5,7 +5,15 @@ from app.services.log_service import LogService
 
 
 class PublishService:
-    """Сервис публикации сгенерированных постов."""
+    """
+    Сервис публикации Telegram-постов.
+
+    Отвечает за:
+    - публикацию только GENERATED постов;
+    - обновление статусов (PUBLISHED / FAILED);
+    - сбор статистики;
+    - логирование.
+    """
 
     def __init__(
             self,
@@ -19,14 +27,14 @@ class PublishService:
 
     def publish_generated_posts(self) -> dict:
         """
-        Публикуем только еще не опубликованные посты.
+        Публикация доступных постов.
 
-        Логика итоговой статистики:
-        - total: все посты, которые видит storage на момент запуска
-        - publishable: сколько из них реально подходят для публикации сейчас
-        - skipped: сколько не вошло в текущую публикацию
-        - published: сколько успешно опубликовано
-        - failed: сколько упало в публикации
+        Метрики:
+        - total
+        - publishable
+        - published
+        - skipped
+        - failed
         """
 
         all_posts = self.post_storage.list_all()

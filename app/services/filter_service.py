@@ -19,7 +19,7 @@ class FilterService:
     - получает include / exclude keywords
     - получает enabled sources
     - подготавливает searchable_text и content_hash
-    - прогоняет news item через цепочку отдельных filter rules
+    - прогоняет news item через цепочку filter rules
     - возвращает filtered_items и dropped_items
     - логирует причину drop
     """
@@ -34,7 +34,7 @@ class FilterService:
         self.log_service = log_service
         self.source_service = source_service
 
-        # Порядок:
+        # Порядок применения правил:
         # 1) source
         # 2) language
         # 3) dedup
@@ -97,8 +97,7 @@ class FilterService:
     def _prepare_item(self, item: NewsItem) -> NewsItem:
         """
         Подготовка item перед запуском правил.
-
-        считаем content_hash один раз в начале
+        Content_hash считаем один раз в начале.
         """
         content_hash = generate_content_hash(item)
         return item.model_copy(update={"content_hash": content_hash})

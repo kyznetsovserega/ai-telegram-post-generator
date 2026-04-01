@@ -3,7 +3,7 @@ from celery.schedules import crontab
 
 from app.config import CELERY_BROKER_URL, CELERY_RESULT_BACKEND
 
-# --- Celery ---
+# Celery
 celery_app = Celery(
     "ai_tg_post_generator",
     broker=CELERY_BROKER_URL,
@@ -17,7 +17,7 @@ celery_app = Celery(
     ],
 )
 
-# --- Celery Beat ---
+# Celery Beat
 celery_app.conf.update(
     task_serializer="json",
     accept_content=["json"],

@@ -29,7 +29,6 @@ def generate_posts_task(previous_result: dict | None = None) -> dict:
         generation_service.generate_for_news_items(filtered_items)
     )
 
-    # читаем все созданные посты и переводим связанные новости в GENERATED
     posts = post_service.list_all()
     generated_news_ids = {post.news_id for post in posts}
 

@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Iterable, Protocol
 
+from app.config import REDIS_LOG_ITEM_TTL_SECONDS
 from app.models import LogItem
 from app.storage.redis_client import get_redis_client
 
@@ -62,7 +63,8 @@ class JsonlLogStorage:
 
 
 class RedisLogStorage:
-    """ Redis-хранилище для логов приложения."""
+    """Redis-хранилище для логов приложения."""
+
     IDS_KEY = "logs:ids"
     ITEM_KEY_PREFIX = "logs:item:"
 
@@ -75,11 +77,19 @@ class RedisLogStorage:
 
     def save(self, item: LogItem) -> None:
         pipeline = self.redis.pipeline()
-        pipeline.set(self._item_key(item.id), item.model_dump_json())
+
+        pipeline.set(
+            self._item_key(item.id),
+            item.model_dump_json(),
+            ex=REDIS_LOG_ITEM_TTL_SECONDS,
+        )
         pipeline.zadd(self.IDS_KEY, {item.id: item.created_at.timestamp()})
         pipeline.execute()
 
     def save_many(self, items: Iterable[LogItem]) -> int:
+        """
+        Пакетное сохранение логов.
+       """
         items_list = list(items)
         if not items_list:
             return 0
@@ -87,7 +97,11 @@ class RedisLogStorage:
         pipeline = self.redis.pipeline()
 
         for item in items_list:
-            pipeline.set(self._item_key(item.id), item.model_dump_json())
+            pipeline.set(
+                self._item_key(item.id),
+                item.model_dump_json(),
+                ex=REDIS_LOG_ITEM_TTL_SECONDS,
+            )
             pipeline.zadd(self.IDS_KEY, {item.id: item.created_at.timestamp()})
 
         pipeline.execute()

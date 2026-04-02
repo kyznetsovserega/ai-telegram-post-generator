@@ -1,7 +1,12 @@
 from celery import Celery
 from celery.schedules import crontab
 
-from app.config import CELERY_BROKER_URL, CELERY_RESULT_BACKEND
+from app.config import (
+    CELERY_BROKER_URL,
+    CELERY_RESULT_BACKEND,
+    REDIS_CLEANUP_SCHEDULE_HOUR_UTC,
+    REDIS_CLEANUP_SCHEDULE_MINUTE_UTC,
+)
 
 # Celery
 celery_app = Celery(
@@ -14,6 +19,7 @@ celery_app = Celery(
         "app.tasks.generate",
         "app.tasks.publish",
         "app.tasks.pipeline",
+        "app.tasks.cleanup",
     ],
 )
 
@@ -28,6 +34,13 @@ celery_app.conf.update(
         "collect-sites-every-30-minutes": {
             "task": "app.tasks.pipeline_chain_task",
             "schedule": crontab(minute="*/30"),
-        }
+        },
+        "cleanup-redis-indexes-daily": {
+            "task": "app.tasks.cleanup.cleanup_indexes",
+            "schedule": crontab(
+                hour=REDIS_CLEANUP_SCHEDULE_HOUR_UTC,
+                minute=REDIS_CLEANUP_SCHEDULE_MINUTE_UTC,
+            ),
+        },
     },
 )

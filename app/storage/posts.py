@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Optional, Iterable
 
+from app.config import REDIS_POST_ITEM_TTL_SECONDS
 from app.models import PostItem, PostStatus
 from app.storage.redis_client import get_redis_client
 
@@ -106,7 +107,7 @@ class JsonlPostStorage:
 
 
 class RedisPostStorage:
-    """ Redis-хранилище для сгенерированных сообщений Telegram. """
+    """Redis-хранилище для сгенерированных сообщений Telegram."""
 
     IDS_KEY = "posts:ids"
     ITEM_KEY_PREFIX = "posts:item:"
@@ -119,11 +120,13 @@ class RedisPostStorage:
         return f"{cls.ITEM_KEY_PREFIX}{post_id}"
 
     def save(self, post: PostItem) -> None:
-        """
-        Сохраняет новый пост или перезаписывает существующий по тому же id.
-        """
         pipeline = self.redis.pipeline()
-        pipeline.set(self._item_key(post.id), post.model_dump_json())
+
+        pipeline.set(
+            self._item_key(post.id),
+            post.model_dump_json(),
+            ex=REDIS_POST_ITEM_TTL_SECONDS,
+        )
         pipeline.sadd(self.IDS_KEY, post.id)
         pipeline.execute()
 
@@ -170,11 +173,15 @@ class RedisPostStorage:
     def list_publishable(self) -> list[PostItem]:
         return [
             item for item in self.list_all()
-            if item.status == PostStatus.GENERATED and item.published_at is None
+            if (
+                    item.status == PostStatus.GENERATED
+                    and item.published_at is None
+                    and item.external_message_id is None
+            )
         ]
 
     def update(self, post: PostItem) -> None:
-        """ Обновляет существующий пост по id. """
+        """Обновляет существующий пост по id."""
         existing = self.get_by_id(post.id)
         if existing is None:
             raise LookupError(f"Post not found: {post.id}")
@@ -182,6 +189,9 @@ class RedisPostStorage:
         self.save(post)
 
     def write_all(self, items: Iterable[PostItem]) -> None:
+        """
+        Полностью пересобирает Redis-хранилище постов.
+        """
         items_list = list(items)
         existing_ids = self.redis.smembers(self.IDS_KEY)
 
@@ -193,7 +203,11 @@ class RedisPostStorage:
         pipeline.delete(self.IDS_KEY)
 
         for item in items_list:
-            pipeline.set(self._item_key(item.id), item.model_dump_json())
+            pipeline.set(
+                self._item_key(item.id),
+                item.model_dump_json(),
+                ex=REDIS_POST_ITEM_TTL_SECONDS,
+            )
             pipeline.sadd(self.IDS_KEY, item.id)
 
         pipeline.execute()

@@ -6,6 +6,10 @@ import logging
 from pathlib import Path
 from typing import Iterable, Optional
 
+from app.config import (
+    REDIS_NEWS_CONTENT_HASH_TTL_SECONDS,
+    REDIS_NEWS_ITEM_TTL_SECONDS,
+)
 from app.models import NewsItem
 from app.storage.redis_client import get_redis_client
 
@@ -165,10 +169,10 @@ class JsonlNewsStorage:
 
 
 class RedisNewsStorage:
-    """Redis-хранилище новостей + дедуп по content-hash."""
+    """Redis-хранилище новостей + дедуп по content-hash (TTL-based)."""
 
     IDS_KEY = "news:ids"
-    HASHES_KEY = "news:content_hashes"
+    HASH_KEY_PREFIX = "news:content_hash:"
     ITEM_KEY_PREFIX = "news:item:"
 
     def __init__(self) -> None:
@@ -177,6 +181,10 @@ class RedisNewsStorage:
     @classmethod
     def _item_key(cls, news_id: str) -> str:
         return f"{cls.ITEM_KEY_PREFIX}{news_id}"
+
+    @classmethod
+    def _hash_key(cls, content_hash: str) -> str:
+        return f"{cls.HASH_KEY_PREFIX}{content_hash}"
 
     def save_many(self, items: Iterable[NewsItem]) -> int:
         count = 0
@@ -191,9 +199,8 @@ class RedisNewsStorage:
 
             content_hash = item.content_hash or generate_content_hash(item)
 
-            if self.redis.sismember(self.HASHES_KEY, content_hash):
-                logger.info(
-                    "News not saved (duplicate content)",
+            if self.redis.exists(self._hash_key(content_hash)):
+                logger.info("News not saved (duplicate content)",
                     extra={
                         "news_id": item.id,
                         "content_hash": content_hash,
@@ -204,11 +211,20 @@ class RedisNewsStorage:
             normalized_item = item.model_copy(update={"content_hash": content_hash})
 
             pipeline = self.redis.pipeline()
-            pipeline.set(self._item_key(normalized_item.id), normalized_item.model_dump_json())
-            pipeline.sadd(self.IDS_KEY, normalized_item.id)
-            pipeline.sadd(self.HASHES_KEY, content_hash)
-            pipeline.execute()
 
+            pipeline.set(
+                self._item_key(normalized_item.id),
+                normalized_item.model_dump_json(),
+                ex=REDIS_NEWS_ITEM_TTL_SECONDS,
+            )
+            pipeline.sadd(self.IDS_KEY, normalized_item.id)
+            pipeline.set(
+                self._hash_key(content_hash),
+                "1",
+                ex=REDIS_NEWS_CONTENT_HASH_TTL_SECONDS,
+            )
+
+            pipeline.execute()
             count += 1
 
         return count
@@ -240,6 +256,9 @@ class RedisNewsStorage:
         return NewsItem.model_validate_json(payload)
 
     def write_all(self, items: Iterable[NewsItem]) -> None:
+        """
+        Полностью пересобирает Redis-хранилище новостей.
+        """
         items_list = list(items)
         existing_ids = self.redis.smembers(self.IDS_KEY)
 
@@ -249,14 +268,21 @@ class RedisNewsStorage:
             pipeline.delete(self._item_key(news_id))
 
         pipeline.delete(self.IDS_KEY)
-        pipeline.delete(self.HASHES_KEY)
 
         for item in items_list:
             content_hash = item.content_hash or generate_content_hash(item)
             normalized_item = item.model_copy(update={"content_hash": content_hash})
 
-            pipeline.set(self._item_key(normalized_item.id), normalized_item.model_dump_json())
+            pipeline.set(
+                self._item_key(normalized_item.id),
+                normalized_item.model_dump_json(),
+                ex=REDIS_NEWS_ITEM_TTL_SECONDS,  # CHANGED
+            )
             pipeline.sadd(self.IDS_KEY, normalized_item.id)
-            pipeline.sadd(self.HASHES_KEY, content_hash)
+            pipeline.set(
+                self._hash_key(content_hash),
+                "1",
+                ex=REDIS_NEWS_CONTENT_HASH_TTL_SECONDS,  # CHANGED
+            )
 
         pipeline.execute()

@@ -10,15 +10,33 @@ load_dotenv(BASE_DIR / ".env")
 
 
 def _env(name: str, default: str) -> str:
+    """Возвращает строковое значение переменной окружения."""
     return os.getenv(name, default)
 
 
 def _csv_env(name: str, default: str = "") -> list[str]:
+    """Читает CSV-значение из .env и превращает его в список строк."""
     raw_value = os.getenv(name, default)
     return [item.strip() for item in raw_value.split(",") if item.strip()]
 
 
-# Celery Redis
+def _int_env(name: str, default: int) -> int:
+    """
+    Читает целочисленное значение из .env.
+    """
+    raw_value = os.getenv(name)
+    if raw_value is None or raw_value.strip() == "":
+        return default
+
+    try:
+        return int(raw_value)
+    except ValueError as exc:
+        raise ValueError(
+            f"Environment variable {name} must be an integer, got: {raw_value!r}"
+        ) from exc
+
+
+# Celery / Redis
 CELERY_BROKER_URL = _env("CELERY_BROKER_URL", "redis://localhost:6379/0")
 CELERY_RESULT_BACKEND = _env("CELERY_RESULT_BACKEND", CELERY_BROKER_URL)
 
@@ -67,4 +85,36 @@ TELEGRAM_PARSER_SESSION_NAME = _env(
 TELEGRAM_SOURCE_CHANNELS = _csv_env(
     "TELEGRAM_SOURCE_CHANNELS",
     "thehackernews,itsfoss_official",
+)
+
+# Redis retention policy
+REDIS_NEWS_ITEM_TTL_SECONDS = _int_env(
+    "REDIS_NEWS_ITEM_TTL_SECONDS",
+    7 * 24 * 60 * 60,  # 7 days
+)
+
+REDIS_NEWS_CONTENT_HASH_TTL_SECONDS = _int_env(
+    "REDIS_NEWS_CONTENT_HASH_TTL_SECONDS",
+    14 * 24 * 60 * 60,  # 14 days
+)
+
+REDIS_POST_ITEM_TTL_SECONDS = _int_env(
+    "REDIS_POST_ITEM_TTL_SECONDS",
+    90 * 24 * 60 * 60,  # 90 days
+)
+
+REDIS_LOG_ITEM_TTL_SECONDS = _int_env(
+    "REDIS_LOG_ITEM_TTL_SECONDS",
+    14 * 24 * 60 * 60,  # 14 days
+)
+
+# Redis cleanup schedule (UTC)
+REDIS_CLEANUP_SCHEDULE_HOUR_UTC = _int_env(
+    "REDIS_CLEANUP_SCHEDULE_HOUR_UTC",
+    3,
+)
+
+REDIS_CLEANUP_SCHEDULE_MINUTE_UTC = _int_env(
+    "REDIS_CLEANUP_SCHEDULE_MINUTE_UTC",
+    0,
 )

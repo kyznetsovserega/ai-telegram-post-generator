@@ -21,7 +21,7 @@ def get_storage_backend() -> str:
     backend = STORAGE_BACKEND.strip().lower()
 
     if backend not in {"jsonl", "redis"}:
-        return "jsonl"
+        raise ValueError(f"Unsupported storage backend: {backend}")
 
     return backend
 

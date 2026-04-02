@@ -23,7 +23,7 @@ CELERY_BROKER_URL = _env("CELERY_BROKER_URL", "redis://localhost:6379/0")
 CELERY_RESULT_BACKEND = _env("CELERY_RESULT_BACKEND", CELERY_BROKER_URL)
 
 # App storage backend
-STORAGE_BACKEND = _env("STORAGE_BACKEND", "jsonl").strip().lower()
+STORAGE_BACKEND = _env("STORAGE_BACKEND", "redis").strip().lower()
 APP_REDIS_URL = _env("APP_REDIS_URL", CELERY_BROKER_URL)
 
 # Worker -> FastAPI API call

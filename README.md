@@ -16,7 +16,7 @@ collect -> filter -> generate -> publish
 - Фильтрация по ключевым словам, источникам, языку и дедупликация
 - Генерация Telegram-постов через LLM (OpenAI / Gemini)
 - Публикация в Telegram через Telethon
-- Автоматический запуск pipeline через Celery Beat
+- Автоматический запуск pipeline и служебных фоновых задач по расписанию через Celery Beat
 - REST API для управления источниками, keywords, просмотра новостей, постов и логов
 - Переключаемый storage backend: JSONL или Redis
 
@@ -32,7 +32,7 @@ collect -> filter -> generate -> publish
 4. публикует результат в канал;
 5. позволяет управлять всем процессом через FastAPI API.
 
-Pipeline построен на основе статусов сущностей и orchestrated через Celery chain.
+Pipeline построен на основе статусов сущностей и orchestrated через Celery tasks (chain / group).
 
 </details>
 
@@ -325,7 +325,8 @@ AI Telegram Post Generator
 │   │   └── sources.py                # хранение источников                                           
 │   │                                         
 │   ├── tasks/                        # Celery pipeline                                                                                                     
-│   │   ├── __init__.py               # регистрация задач                                                                                                                        
+│   │   ├── __init__.py               # регистрация задач 
+│   │   ├── cleanup.py                # служебная очистка битых Redis-индексов                                                                                                                       
 │   │   ├── collect.py                # задача сбора новостей                                                                                                            
 │   │   ├── filter.py                 # задача фильтрации                                                                                                          
 │   │   ├── generate.py               # задача генерации постов                                                                                                            
@@ -400,6 +401,17 @@ TELEGRAM_SESSION_NAME=telegram_publisher
 # Telegram ingest
 TELEGRAM_PARSER_SESSION_NAME=telegram_parser
 TELEGRAM_SOURCE_CHANNELS=thehackernews,itsfoss_official
+
+# Redis retention policy
+REDIS_NEWS_ITEM_TTL_SECONDS=604800
+REDIS_NEWS_CONTENT_HASH_TTL_SECONDS=1209600
+REDIS_POST_ITEM_TTL_SECONDS=7776000
+REDIS_LOG_ITEM_TTL_SECONDS=1209600
+
+# Redis cleanup schedule (UTC)
+REDIS_CLEANUP_SCHEDULE_HOUR_UTC=3
+REDIS_CLEANUP_SCHEDULE_MINUTE_UTC=0
+
 ```
 
 ---
@@ -456,6 +468,8 @@ uvicorn app.main:app --reload
 celery -A app.celery_app:celery_app worker --pool=solo --loglevel=info
 ```
 
+Для Windows параметр `--pool=solo` обязателен.
+
 ### Telegram авторизация (Telethon)
 
 Перед использованием функций публикации и парсинга Telegram-каналов 
@@ -478,14 +492,39 @@ python -c "from app.telegram.publisher import TelegramPublisher; TelegramPublish
 Celery worker и beat используют .session автоматически
 публикация работает без ввода кода.
 
+## Celery Beat и расписание задач
+
+<details>
+
+`Celery Beat` отвечает за периодический автоматический запуск фоновых задач по расписанию.
+Beat использует расписание, заданное в `app/celery_app.py`, и запускает два процесса:
+
+1. **Основной pipeline каждые 30 минут**
+   - задача: `app.tasks.pipeline_chain_task`
+   - назначение:
+     - сбор новостей из включённых источников
+     - фильтрация
+     - генерация постов
+     - публикация в Telegram
+
+2. **Очистка Redis-индексов один раз в сутки**
+   - задача: `app.tasks.cleanup.cleanup_indexes`
+   - назначение:
+     - удаление битых ссылок из Redis-индексов:
+       - `news:ids`
+       - `posts:ids`
+       - `logs:ids`
+   - расписание задаётся через переменные окружения:
+     - `REDIS_CLEANUP_SCHEDULE_HOUR_UTC`
+     - `REDIS_CLEANUP_SCHEDULE_MINUTE_UTC`
+
+</details>
+
 ### 6. Запуск Celery Beat
 
 ```bash
 celery -A app.celery_app:celery_app beat --loglevel=info
 ```
-
-Для Windows параметр `--pool=solo` обязателен.
-
 ---
 
 ## Проверка работоспособности

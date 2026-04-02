@@ -24,6 +24,8 @@ Thumbs.db
 
 # Celery
 celerybeat-schedule
+celerybeat-schedule-shm
+celerybeat-schedule-wal
 
 # Redis / data
 data/

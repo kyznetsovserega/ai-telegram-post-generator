@@ -80,13 +80,11 @@ FREE_LLM_TIMEOUT = _int_env("FREE_LLM_TIMEOUT", 30)
 TELEGRAM_CHANNEL = _env("TELEGRAM_CHANNEL", "")
 TELEGRAM_API_ID = _env("TELEGRAM_API_ID", "")
 TELEGRAM_API_HASH = _env("TELEGRAM_API_HASH", "")
-TELEGRAM_SESSION_NAME = _env("TELEGRAM_SESSION_NAME", "telegram_publisher")
+
+# Единая строковая сессия для publisher и parser
+TELEGRAM_SESSION_STRING = _env("TELEGRAM_SESSION_STRING", "").strip()
 
 # Telegram ingest via Telethon
-TELEGRAM_PARSER_SESSION_NAME = _env(
-    "TELEGRAM_PARSER_SESSION_NAME",
-    "telegram_parser",
-)
 TELEGRAM_SOURCE_CHANNELS = _csv_env(
     "TELEGRAM_SOURCE_CHANNELS",
     "thehackernews,itsfoss_official",

@@ -4,12 +4,13 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from telethon import TelegramClient
+from telethon.sessions import StringSession
 from telethon.tl.custom.message import Message
 
 from app.config import (
     TELEGRAM_API_HASH,
     TELEGRAM_API_ID,
-    TELEGRAM_PARSER_SESSION_NAME,
+    TELEGRAM_SESSION_STRING,
 )
 from app.models import NewsItem
 from app.news_parser.sources.rss_common import build_news_id
@@ -73,11 +74,14 @@ class TelegramChannelParser:
         if not TELEGRAM_API_HASH:
             raise RuntimeError("TELEGRAM_API_HASH is not configured")
 
+        if not TELEGRAM_SESSION_STRING:
+            raise RuntimeError("TELEGRAM_SESSION_STRING is not configured")
+
         normalized_channel = _normalize_channel_username(self.channel_username)
         source_key = f"tg:{normalized_channel}"
 
         client = TelegramClient(
-            session=f"{TELEGRAM_PARSER_SESSION_NAME}_{normalized_channel}",
+            session=StringSession(TELEGRAM_SESSION_STRING),
             api_id=int(TELEGRAM_API_ID),
             api_hash=TELEGRAM_API_HASH,
         )

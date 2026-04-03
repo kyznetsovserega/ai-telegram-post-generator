@@ -4,12 +4,13 @@ import asyncio
 from dataclasses import dataclass
 
 from telethon import TelegramClient
+from telethon.sessions import StringSession
 
 from app.config import (
     TELEGRAM_API_HASH,
     TELEGRAM_API_ID,
     TELEGRAM_CHANNEL,
-    TELEGRAM_SESSION_NAME,
+    TELEGRAM_SESSION_STRING,
 )
 
 
@@ -38,9 +39,12 @@ class TelegramPublisher:
         if not TELEGRAM_API_HASH:
             raise RuntimeError("TELEGRAM_API_HASH is not configured")
 
+        if not TELEGRAM_SESSION_STRING:
+            raise RuntimeError("TELEGRAM_SESSION_STRING is not configured")
+
         async def _send():
             async with TelegramClient(
-                    session=TELEGRAM_SESSION_NAME,
+                    session=StringSession(TELEGRAM_SESSION_STRING),
                     api_id=int(TELEGRAM_API_ID),
                     api_hash=TELEGRAM_API_HASH,
             ) as client:
@@ -71,5 +75,7 @@ class TelegramPublisher:
             )
 
         finally:
+            asyncio.set_event_loop(None)
+
             if loop is not None:
                 loop.close()

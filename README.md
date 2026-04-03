@@ -166,12 +166,23 @@ Publish
 ---
 
 ## AI-генерация
+### Выбор LLM-провайдера
+
+Провайдер задаётся через переменную окружения:
+
+```env
+LLM_PROVIDER=openai
+# или
+LLM_PROVIDER=gemini
+# или
+LLM_PROVIDER=free_llm
+```
 
 Поддерживаются провайдеры:
 
 - OpenAI
 - Google Gemini
-- ApiFreellm
+- Free LLM (apifreellm.com)
 
 Архитектура AI-слоя:
 
@@ -261,7 +272,7 @@ AI Telegram Post Generator
 │   │   ├── factory.py                # выбор провайдера (OpenAI / Gemini)                 
 │   │   ├── gemini_client.py          # клиент Gemini API                                                 
 │   │   ├── openai_client.py          # клиент OpenAI API
-│   │   ├── free_llm_client.py        # клиент ApiFreellm API
+│   │   ├── free_llm_client.py        # клиент Free LLM API
 │   │   ├── generator.py              # orchestration генерации (retry, fallback)                                                                                              
 │   │   └── validators.py             # валидация и нормализация текста                                              
 │   │                                                           
@@ -555,7 +566,7 @@ curl http://127.0.0.1:8000/health
 {
    "status": "ok",
    "storage_backend": "redis",
-   "llm_provider": "gemini",
+   "llm_provider": "free_llm",
    "redis_configured": true
 }
 ```

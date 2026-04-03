@@ -71,6 +71,11 @@ OPENAI_MODEL = _env("OPENAI_MODEL", "gpt-5.2")
 GEMINI_API_KEY = _env("GEMINI_API_KEY", "")
 GEMINI_MODEL = _env("GEMINI_MODEL", "gemini-2.5-flash")
 
+# APIFREELLM
+FREE_LLM_API_KEY = _env("FREE_LLM_API_KEY", "")
+FREE_LLM_BASE_URL = _env("FREE_LLM_BASE_URL", "https://apifreellm.com/api/v1/chat")
+FREE_LLM_TIMEOUT = _int_env("FREE_LLM_TIMEOUT", 30)
+
 # Telegram publish via Telethon
 TELEGRAM_CHANNEL = _env("TELEGRAM_CHANNEL", "")
 TELEGRAM_API_ID = _env("TELEGRAM_API_ID", "")

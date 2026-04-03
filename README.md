@@ -171,12 +171,13 @@ Publish
 
 - OpenAI
 - Google Gemini
+- ApiFreellm
 
 Архитектура AI-слоя:
 
 - `TextGenerationClient` / интерфейсы
 - factory (`app/ai/factory.py`)
-- провайдеры (`openai_client.py`, `gemini_client.py`)
+- провайдеры (`openai_client.py`, `gemini_client.py`, `free_llm_client.py`)
 - валидация и retry
 
 Особенности:
@@ -259,8 +260,9 @@ AI Telegram Post Generator
 │   │   ├── errors.py                 # типизация и обработка ошибок AI                
 │   │   ├── factory.py                # выбор провайдера (OpenAI / Gemini)                 
 │   │   ├── gemini_client.py          # клиент Gemini API                                                 
-│   │   ├── generator.py              # orchestration генерации (retry, fallback)                                             
-│   │   ├── openai_client.py          # клиент OpenAI API                                                 
+│   │   ├── openai_client.py          # клиент OpenAI API
+│   │   ├── free_llm_client.py        # клиент ApiFreellm API
+│   │   ├── generator.py              # orchestration генерации (retry, fallback)                                                                                              
 │   │   └── validators.py             # валидация и нормализация текста                                              
 │   │                                                           
 │   ├── api/                          # API слой                                  
@@ -386,11 +388,17 @@ FILTER_INCLUDE_KEYWORDS=ai,llm,gpt,openai,gemini,python,fastapi,telegram,devops,
 FILTER_EXCLUDE_KEYWORDS=
 
 # LLM
-LLM_PROVIDER=gemini
+LLM_PROVIDER=free_llm
+
 OPENAI_API_KEY=
 OPENAI_MODEL=gpt-5.2
+
 GEMINI_API_KEY=
 GEMINI_MODEL=gemini-2.5-flash
+
+FREE_LLM_API_KEY=
+FREE_LLM_BASE_URL=https://apifreellm.com/api/v1/chat
+FREE_LLM_TIMEOUT=30
 
 # Telegram publish
 TELEGRAM_CHANNEL=https://t.me/link

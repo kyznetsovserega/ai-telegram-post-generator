@@ -356,7 +356,12 @@ AI Telegram Post Generator
 ├── requirements.txt                  # зависимости проекта              
 ├── README.md                         # документация проекта        
 ├── .gitignore                        # исключения Git                                
-└── .env.example                      # пример конфигурации 
+├── .env.example                      # пример конфигурации 
+│ 
+└── scripts                      
+    └── generate_telegram_session.py  # утелита генерация TELEGRAM_SESSION_STRING
+
+
 ```
 **Celery использует sync-подход (через asyncio.run в задачах)**
 
@@ -383,10 +388,10 @@ AI Telegram Post Generator
 # Celery / Redis
 CELERY_BROKER_URL=redis://localhost:6379/0
 CELERY_RESULT_BACKEND=redis://localhost:6379/0
-APP_REDIS_URL=redis://localhost:6379/0
 
 # Storage backend
 STORAGE_BACKEND=redis
+APP_REDIS_URL=redis://localhost:6379/0
 
 # API
 FASTAPI_BASE_URL=http://127.0.0.1:8000
@@ -400,7 +405,6 @@ FILTER_EXCLUDE_KEYWORDS=
 
 # LLM
 LLM_PROVIDER=free_llm
-
 OPENAI_API_KEY=
 OPENAI_MODEL=gpt-5.2
 
@@ -415,10 +419,11 @@ FREE_LLM_TIMEOUT=30
 TELEGRAM_CHANNEL=https://t.me/link
 TELEGRAM_API_ID=
 TELEGRAM_API_HASH=
-TELEGRAM_SESSION_NAME=telegram_publisher
+
+# Единая строковая сессия для publisher и parser
+TELEGRAM_SESSION_STRING=
 
 # Telegram ingest
-TELEGRAM_PARSER_SESSION_NAME=telegram_parser
 TELEGRAM_SOURCE_CHANNELS=thehackernews,itsfoss_official
 
 # Redis retention policy
@@ -491,25 +496,33 @@ celery -A app.celery_app:celery_app worker --pool=solo --loglevel=info
 
 ### Telegram авторизация (Telethon)
 
-Перед использованием функций публикации и парсинга Telegram-каналов 
-необходимо один раз выполнить авторизацию в Telegram.
+Перед использованием публикации постов и парсинга Telegram-каналов
+необходимо один раз получить строковую сессию Telethon.
 
-Проект использует библиотеку Telethon, которая сохраняет сессию в .session файл после первого входа
+Проект использует **единую строковую сессию**:
+
+`TELEGRAM_SESSION_STRING` — общая сессия для publisher и parser
 
 Выполните в терминале:
 
 ```bash
-python -c "from app.telegram.publisher import TelegramPublisher; TelegramPublisher().publish_post('test message')"
+python scripts/generate_telegram_session.py
+```
+Скрипт:
+- запросит номер телефона
+- запросит код из Telegram
+- при необходимости — пароль 2FA
+
+После успешной авторизации вы получите строку:
+```text
+===== Сохраните эту строку в TELEGRAM_SESSION_STRING =====
+<ваша строка>
+==========================================================
 ```
 
-После этого:
-- ведите номер телефона
-- ведите код, полученный в Telegram
-- если двухфакторная аутентификация телеграм - нужен пароль от Telegram аккаунта
+Сохраните её в .env:
 
-повторная авторизация НЕ требуется
-Celery worker и beat используют .session автоматически
-публикация работает без ввода кода.
+`TELEGRAM_SESSION_STRING`=ваша_строковая_сессия
 
 ## Celery Beat и расписание задач
 

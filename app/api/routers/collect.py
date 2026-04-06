@@ -9,7 +9,12 @@ from app.services import NewsService
 router = APIRouter()
 
 
-@router.post("/collect/sites", response_model=CollectSitesResponse)
+@router.post(
+    "/collect/sites",
+    response_model=CollectSitesResponse,
+    summary="Collect news from sites",
+    description="Collects news from configured sources (sites and Telegram channels).",
+)
 async def collect_sites(
         payload: CollectSitesRequest,
         service: NewsService = Depends(get_news_service),

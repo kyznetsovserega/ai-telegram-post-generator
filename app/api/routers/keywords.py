@@ -15,7 +15,12 @@ from app.services import KeywordService
 router = APIRouter()
 
 
-@router.get("/keywords", response_model=KeywordListResponse)
+@router.get(
+    "/keywords",
+    response_model=KeywordListResponse,
+    summary="List keywords",
+    description="Returns all filtering keywords (include/exclude).",
+)
 async def list_keywords(
         service: KeywordService = Depends(get_keyword_service),
 ) -> KeywordListResponse:
@@ -32,7 +37,13 @@ async def list_keywords(
     return KeywordListResponse(items=items, total=len(items))
 
 
-@router.post("/keywords", response_model=KeywordItemResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/keywords",
+    response_model=KeywordItemResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create keyword",
+    description="Adds a keyword for filtering news (include or exclude).",
+)
 async def create_keyword(
         payload: KeywordCreateRequest,
         service: KeywordService = Depends(get_keyword_service),
@@ -48,7 +59,12 @@ async def create_keyword(
     )
 
 
-@router.delete("/keywords/{keyword_type}/{value}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/keywords/{keyword_type}/{value}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete keyword",
+    description="Deletes a keyword by type (include/exclude) and value.",
+)
 async def delete_keyword(
         keyword_type: str,
         value: str,

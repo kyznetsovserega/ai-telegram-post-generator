@@ -9,7 +9,12 @@ from app.services.log_service import LogService
 router = APIRouter()
 
 
-@router.get("/logs", response_model=LogListResponse)
+@router.get(
+    "/logs",
+    response_model=LogListResponse,
+    summary="List logs",
+    description="Returns application logs with optional filtering by level and source.",
+)
 async def list_logs(
         level: str | None = Query(default=None),
         source: str | None = Query(default=None),

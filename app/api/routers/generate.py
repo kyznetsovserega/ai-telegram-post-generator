@@ -15,7 +15,12 @@ from app.services import GenerationService
 router = APIRouter()
 
 
-@router.post("/generate/", response_model=GenerateResponse)
+@router.post(
+    "/generate/",
+    response_model=GenerateResponse,
+    summary="Generate post from text",
+    description="Generates a Telegram-ready post using LLM based on input text.",
+)
 async def generate_post(
         payload: GenerateRequest,
         service: GenerationService = Depends(get_generation_service),
@@ -31,6 +36,8 @@ async def generate_post(
     "/generate/from-news",
     response_model=GenerateFromNewsResponse,
     status_code=status.HTTP_201_CREATED,
+    summary="Generate post from news",
+    description="Generates a Telegram post based on a stored news item by news_id.",
 )
 async def generate_post_from_news(
         payload: GenerateFromNewsRequest,

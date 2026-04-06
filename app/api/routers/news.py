@@ -9,7 +9,12 @@ from app.services.news_service import NewsService
 router = APIRouter()
 
 
-@router.get("/news", response_model=NewsListResponse)
+@router.get(
+    "/news",
+    response_model=NewsListResponse,
+    summary="List news",
+    description="Returns collected news items with their current processing status.",
+)
 async def list_news(
         service: NewsService = Depends(get_news_service),
 ) -> NewsListResponse:

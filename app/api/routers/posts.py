@@ -9,7 +9,12 @@ from app.services import PostService
 router = APIRouter()
 
 
-@router.get("/posts", response_model=PostHistoryListResponse)
+@router.get(
+    "/posts",
+    response_model=PostHistoryListResponse,
+    summary="List generated posts",
+    description="Returns all generated posts with their publication status.",
+)
 async def list_generated_posts(
         service: PostService = Depends(get_post_service),
 ) -> PostHistoryListResponse:

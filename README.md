@@ -506,7 +506,7 @@ celery -A app.celery_app:celery_app worker --pool=solo --loglevel=info
 Выполните в терминале:
 
 ```bash
-python scripts/generate_telegram_session.py
+python -m scripts.generate_telegram_session
 ```
 Скрипт:
 - запросит номер телефона

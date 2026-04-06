@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from app.ai.factory import build_text_generation_client
-from app.ai.generator import PostGenerator
 from app.news_parser.sites import (
     available_source_items,
     collect_from_sites,
@@ -19,6 +17,8 @@ from app.services import (
     PublishService,
     SourceService,
 )
+
+from app.services.generation_service import build_post_generator
 from app.storage import (
     get_keyword_storage,
     get_log_storage,
@@ -27,11 +27,6 @@ from app.storage import (
     get_source_storage,
 )
 from app.telegram.publisher import TelegramPublisher
-
-
-def build_post_generator() -> PostGenerator:
-    """Создаём PostGenerator через factory AI-клиента."""
-    return PostGenerator(client=build_text_generation_client())
 
 
 class Container:
@@ -75,6 +70,7 @@ class Container:
             news_storage=self.news_storage,
             post_storage=self.post_storage,
             log_service=self.log_service,
+            # Передаём новую фабрику из app.services.generation_service
             generator_factory=build_post_generator,
         )
 

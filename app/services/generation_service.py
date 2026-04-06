@@ -10,12 +10,13 @@ from app.ai.generator import PostGenerator
 from app.models import LogItem, LogLevel, NewsItem, PostItem, PostStatus
 from app.services.log_service import LogService
 
-GeneratorFactory = Callable[[], PostGenerator]
+GeneratorFactory = Callable[[str], PostGenerator]
 
 
-def build_post_generator() -> PostGenerator:
-    """Создаёт генератор постов с текущим LLM client."""
-    client = build_text_generation_client()
+def build_post_generator(provider: str) -> PostGenerator:
+    """Создаёт генератор постов с явным LLM provider."""
+    # передаём provider явно в фабрику
+    client = build_text_generation_client(provider)
     return PostGenerator(client=client)
 
 
@@ -43,25 +44,46 @@ class GenerationService:
         self.generator_factory = generator_factory
 
     @staticmethod
-    def ensure_provider_configured() -> str:
-        """Проверка конфигурации LLM-провайдера."""
-        provider = config.LLM_PROVIDER.lower()
+    def resolve_provider() -> str:
+        """
+        Выбирает доступный LLM-провайдер с fallback логикой.
 
-        if provider == "openai" and not config.OPENAI_API_KEY:
-            raise RuntimeError("OPENAI_API_KEY is not configured")
+        Приоритет:
+        1. provider из LLM_PROVIDER
+        2. openai
+        3. gemini
+        4. free_llm
+        """
+        requested_provider = config.LLM_PROVIDER.lower().strip()
 
-        if provider == "gemini" and not config.GEMINI_API_KEY:
-            raise RuntimeError("GEMINI_API_KEY is not configured")
+        provider_checks = {
+            "openai": bool(config.OPENAI_API_KEY),
+            "gemini": bool(config.GEMINI_API_KEY),
+            "free_llm": bool(config.FREE_LLM_API_KEY),
+        }
 
-        return provider
+        # Если пользователь явно указал провайдера и он настроен — используем его.
+        if requested_provider in provider_checks and provider_checks[requested_provider]:
+            return requested_provider
+
+        # Если выбранный provider не настроен — автоматически fallback на доступный.
+        for provider in ("openai", "gemini", "free_llm"):
+            if provider_checks[provider]:
+                return provider
+
+        raise RuntimeError(
+            "No LLM provider configured. "
+            "Set one of: OPENAI_API_KEY / GEMINI_API_KEY / FREE_LLM_API_KEY"
+        )
 
     async def generate_from_text(self, text: str) -> str:
         """
         Генерация поста из произвольного текста (API-слой).
         """
-        self.ensure_provider_configured()
+        provider = self.resolve_provider()
 
-        generator = self.generator_factory()
+        # передаём provider в фабрику генератора
+        generator = self.generator_factory(provider)
         post = await generator.generate_from_text(text)
         return post.text
 
@@ -159,7 +181,7 @@ class GenerationService:
         """
         Общая логика генерации поста по новости.
         """
-        provider = self.ensure_provider_configured()
+        provider = self.resolve_provider()
 
         existing_post = self.post_storage.get_by_news_id(news_item.id)
         if existing_post is not None:
@@ -177,7 +199,8 @@ class GenerationService:
             )
             return existing_post
 
-        generator = self.generator_factory()
+        # создаём generator под конкретный provider
+        generator = self.generator_factory(provider)
         generated_post = await generator.generate_from_news(news_item)
 
         existing_text_post = self.post_storage.get_by_generated_text(

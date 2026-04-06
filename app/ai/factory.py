@@ -7,12 +7,16 @@ from app.ai.gemini_client import GeminiClientConfig, GeminiTextClient
 from app.ai.openai_client import OpenAIClientConfig, OpenAITextClient
 
 
-def build_text_generation_client() -> TextGenerationClient:
-    """Фабрика выбора LLM-провайдера."""
+def build_text_generation_client(provider: str) -> TextGenerationClient:
+    """ Фабрика выбора LLM-провайдера."""
 
-    provider = config.LLM_PROVIDER.lower()
+    provider = provider.lower()
 
+    # --- OpenAI ---
     if provider == "openai":
+        if not config.OPENAI_API_KEY:
+            raise ValueError("OPENAI_API_KEY is not configured")
+
         return OpenAITextClient(
             OpenAIClientConfig(
                 api_key=config.OPENAI_API_KEY,
@@ -20,19 +24,29 @@ def build_text_generation_client() -> TextGenerationClient:
             )
         )
 
+    # --- Gemini ---
     if provider == "gemini":
+        if not config.GEMINI_API_KEY:
+            raise ValueError("GEMINI_API_KEY is not configured")
+
         return GeminiTextClient(
             GeminiClientConfig(
                 api_key=config.GEMINI_API_KEY,
                 model=config.GEMINI_MODEL,
             )
         )
+
+    # --- Free LLM ---
     if provider == "free_llm":
+        if not config.FREE_LLM_API_KEY:
+            raise ValueError("FREE_LLM_API_KEY is not configured")
+
         return FreeLLMTextClient(
             FreeLLMClientConfig(
                 api_key=config.FREE_LLM_API_KEY,
                 base_url=config.FREE_LLM_BASE_URL,
+                timeout=config.FREE_LLM_TIMEOUT,
             )
         )
 
-    raise ValueError(f"Unsupported LLM_PROVIDER:{config.LLM_PROVIDER}")
+    raise ValueError(f"Unsupported LLM_PROVIDER: {provider}")

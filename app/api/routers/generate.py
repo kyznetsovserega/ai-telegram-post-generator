@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, status, Depends
+from fastapi import APIRouter, Depends
 
 from app.api.dependencies.services import get_generation_service
-from app.api.errors import raise_for_ai_error
+from app.api.errors import get_ai_responses, raise_for_ai_error
 from app.api.schemas import (
     GenerateFromNewsRequest,
     GenerateFromNewsResponse,
@@ -20,6 +20,10 @@ router = APIRouter()
     response_model=GenerateResponse,
     summary="Generate post from text",
     description="Generates a Telegram-ready post using LLM based on input text.",
+    responses={
+        200: {"description": "Post generated successfully"},
+        **get_ai_responses(),
+    },
 )
 async def generate_post(
         payload: GenerateRequest,
@@ -35,9 +39,12 @@ async def generate_post(
 @router.post(
     "/generate/from-news",
     response_model=GenerateFromNewsResponse,
-    status_code=status.HTTP_201_CREATED,
     summary="Generate post from news",
-    description="Generates a Telegram post based on a stored news item by news_id.",
+    description="Generates a post based on a stored news item.",
+    responses={
+        200: {"description": "Post generated from news successfully"},
+        **get_ai_responses(),
+    },
 )
 async def generate_post_from_news(
         payload: GenerateFromNewsRequest,

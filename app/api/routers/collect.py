@@ -3,17 +3,22 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 
 from app.api.dependencies.services import get_news_service
+from app.api.errors import get_default_responses
 from app.api.schemas import CollectSitesRequest, CollectSitesResponse
 from app.services import NewsService
 
-router = APIRouter()
+router = APIRouter(prefix="/collect")
 
 
 @router.post(
-    "/collect/sites",
+    "/sites",
     response_model=CollectSitesResponse,
     summary="Collect news from sites",
-    description="Collects news from configured sources (sites and Telegram channels).",
+    description="Collects news from selected sources.",
+    responses={
+        200: {"description": "News collected successfully"},
+        **get_default_responses(),
+    },
 )
 async def collect_sites(
         payload: CollectSitesRequest,

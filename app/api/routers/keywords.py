@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, status, Depends
+from fastapi import APIRouter, Depends, status
 
 from app.api.dependencies.services import get_keyword_service
-from app.api.errors import raise_api_error
+from app.api.errors import get_default_responses, raise_api_error
 from app.api.schemas import (
+    ErrorResponse,
     KeywordCreateRequest,
     KeywordItemResponse,
     KeywordListResponse,
@@ -20,6 +21,10 @@ router = APIRouter()
     response_model=KeywordListResponse,
     summary="List keywords",
     description="Returns all filtering keywords (include/exclude).",
+    responses={
+        200: {"description": "Keywords returned successfully"},
+        **get_default_responses(),
+    },
 )
 async def list_keywords(
         service: KeywordService = Depends(get_keyword_service),
@@ -43,6 +48,10 @@ async def list_keywords(
     status_code=status.HTTP_201_CREATED,
     summary="Create keyword",
     description="Adds a keyword for filtering news (include or exclude).",
+    responses={
+        201: {"description": "Keyword created successfully"},
+        **get_default_responses(),
+    },
 )
 async def create_keyword(
         payload: KeywordCreateRequest,
@@ -64,6 +73,14 @@ async def create_keyword(
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete keyword",
     description="Deletes a keyword by type (include/exclude) and value.",
+    responses={
+        204: {"description": "Keyword deleted successfully"},
+        404: {
+            "description": "Keyword not found",
+            "model": ErrorResponse,
+        },
+        **get_default_responses(),
+    },
 )
 async def delete_keyword(
         keyword_type: str,

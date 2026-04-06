@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 
 from app.api.dependencies.services import get_news_service
+from app.api.errors import get_default_responses
 from app.api.schemas import NewsItemResponse, NewsListResponse
 from app.services.news_service import NewsService
 
@@ -14,6 +15,10 @@ router = APIRouter()
     response_model=NewsListResponse,
     summary="List news",
     description="Returns collected news items with their current processing status.",
+    responses={
+        200: {"description": "News returned successfully"},
+        **get_default_responses(),
+    },
 )
 async def list_news(
         service: NewsService = Depends(get_news_service),

@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, status
 
 from app.api.dependencies.services import get_source_service
-from app.api.errors import raise_api_error
+from app.api.errors import get_default_responses, raise_api_error
 from app.api.schemas import (
     ErrorResponse,
     SourceCreateRequest,
@@ -24,6 +24,7 @@ router = APIRouter()
     description="Returns all configured news sources available for collection.",
     responses={
         200: {"description": "Sources returned successfully"},
+        **get_default_responses(),
     },
 )
 async def list_sources(
@@ -53,14 +54,7 @@ async def list_sources(
     description="Creates a custom source for news collection.",
     responses={
         201: {"description": "Source created successfully"},
-        400: {
-            "description": "Invalid source payload",
-            "model": ErrorResponse,
-        },
-        422: {
-            "description": "Validation error",
-            "model": ErrorResponse,
-        },
+        **get_default_responses(),
     },
 )
 async def create_source(
@@ -98,18 +92,11 @@ async def create_source(
     description="Updates source metadata or enabled status.",
     responses={
         200: {"description": "Source updated successfully"},
-        400: {
-            "description": "Invalid source payload",
-            "model": ErrorResponse,
-        },
         404: {
             "description": "Source not found",
             "model": ErrorResponse,
         },
-        422: {
-            "description": "Validation error",
-            "model": ErrorResponse,
-        },
+        **get_default_responses(),
     },
 )
 async def update_source(
@@ -138,6 +125,12 @@ async def update_source(
             error_type="LookupError",
             message=str(exc),
         )
+    except ValueError as exc:
+        raise_api_error(
+            status_code=400,
+            error_type="ValueError",
+            message=str(exc),
+        )
 
 
 @router.delete(
@@ -147,14 +140,11 @@ async def update_source(
     description="Deletes a custom source.",
     responses={
         204: {"description": "Source deleted successfully"},
-        400: {
-            "description": "Built-in source cannot be deleted",
-            "model": ErrorResponse,
-        },
         404: {
             "description": "Source not found",
             "model": ErrorResponse,
         },
+        **get_default_responses(),
     },
 )
 async def delete_source(

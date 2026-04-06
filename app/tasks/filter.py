@@ -38,6 +38,9 @@ def filter_news_task(previous_result: dict | None = None) -> dict:
         "total": len(new_items),
         "filtered": len(filtered_items),
         "dropped": len(dropped_items),
+        # для отладки
+        "filtered_ids": [item.id for item in filtered_items],
+        "dropped_ids": [item.id for item in dropped_items],
     }
 
     log_service.add_log(
@@ -48,5 +51,34 @@ def filter_news_task(previous_result: dict | None = None) -> dict:
             context=result,
         )
     )
+
+    # Дополнительные детальные логи по каждой новости.
+    for item in filtered_items:
+        log_service.add_log(
+            LogItem(
+                level=LogLevel.INFO,
+                message="News item passed filtering",
+                source="tasks.filter_news_task",
+                context={
+                    "news_id": item.id,
+                    "source": item.source,
+                    "status": getattr(item.status, "value", str(item.status)),
+                },
+            )
+        )
+
+    for item in dropped_items:
+        log_service.add_log(
+            LogItem(
+                level=LogLevel.INFO,
+                message="News item dropped by filtering",
+                source="tasks.filter_news_task",
+                context={
+                    "news_id": item.id,
+                    "source": item.source,
+                    "status": getattr(item.status, "value", str(item.status)),
+                },
+            )
+        )
 
     return result

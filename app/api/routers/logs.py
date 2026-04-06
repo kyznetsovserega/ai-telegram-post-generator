@@ -3,7 +3,6 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Query
 
 from app.api.dependencies.services import get_log_service
-from app.api.errors import get_default_responses
 from app.api.schemas import LogListResponse
 from app.models import LogLevel
 from app.services.log_service import LogService
@@ -17,8 +16,37 @@ router = APIRouter()
     summary="List logs",
     description="Returns application logs with optional filtering by level and source.",
     responses={
-        200: {"description": "Logs returned successfully"},
-        **get_default_responses(),
+        200: {
+            "description": "Logs returned successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "items": [
+                            {
+                                "id": "log_001",
+                                "created_at": "2026-04-06T12:00:00Z",
+                                "level": "info",
+                                "message": "News item dropped by filtering",
+                                "source": "tasks.filter_news_task",
+                                "context": {
+                                    "news_id": "abc123",
+                                    "source": "habr",
+                                    "status": "dropped",
+                                    "reason": "no_include_match",
+                                },
+                            }
+                        ],
+                        "total": 1,
+                    }
+                }
+            },
+        },
+        400: {
+            "description": "Invalid query parameters",
+        },
+        500: {
+            "description": "Internal server error",
+        },
     },
 )
 async def list_logs(

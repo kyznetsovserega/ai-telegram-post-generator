@@ -49,7 +49,19 @@ class FilterService:
     def apply_filter(
             self,
             items: list[NewsItem],
-    ) -> tuple[list[NewsItem], list[NewsItem]]:
+    ) -> tuple[list[NewsItem], list[dict[str, object]]]:
+        """
+        Возвращает:
+        - filtered_items: список новостей, прошедших фильтрацию
+        - dropped_items: список словарей вида
+            {
+                "item": NewsItem,
+                "reason": str,
+            }
+
+        Сделано специально, чтобы причина drop не терялась
+        на уровне Celery task и была доступна в API-логах.
+        """
         include_keywords = [
             item.value
             for item in self.keyword_service.list_by_type(KeywordType.INCLUDE)
@@ -61,7 +73,7 @@ class FilterService:
         enabled_source_ids = self._get_enabled_source_ids()
 
         filtered_items: list[NewsItem] = []
-        dropped_items: list[NewsItem] = []
+        dropped_items: list[dict[str, object]] = []
 
         seen_ids: set[str] = set()
         seen_hashes: set[str] = set()
@@ -85,7 +97,15 @@ class FilterService:
                     update={"status": NewsStatus.DROPPED}
                 )
                 self._log_drop(dropped_item, failed_reason)
-                dropped_items.append(dropped_item)
+
+                # Сохраняем item  и reason,
+                # чтобы tasks/filter.py мог показать причину отклонения.
+                dropped_items.append(
+                    {
+                        "item": dropped_item,
+                        "reason": failed_reason,
+                    }
+                )
                 continue
 
             filtered_items.append(

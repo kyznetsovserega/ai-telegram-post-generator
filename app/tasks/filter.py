@@ -9,6 +9,9 @@ from app.models import LogItem, LogLevel, NewsStatus
 def filter_news_task(previous_result: dict | None = None) -> dict:
     """
     Фильтрация только новых новостей с изменением их статуса.
+
+    После корректировки task дополнительно логирует reason
+    для каждой отклонённой новости, чтобы было видно через /api/logs.
     """
     _ = previous_result
 
@@ -23,7 +26,10 @@ def filter_news_task(previous_result: dict | None = None) -> dict:
     filtered_items, dropped_items = filter_service.apply_filter(new_items)
 
     filtered_by_id = {item.id: item for item in filtered_items}
-    dropped_by_id = {item.id: item for item in dropped_items}
+    dropped_by_id = {
+        record["item"].id: record["item"]
+        for record in dropped_items
+    }
 
     updated_items = [
         filtered_by_id.get(item.id)
@@ -40,7 +46,7 @@ def filter_news_task(previous_result: dict | None = None) -> dict:
         "dropped": len(dropped_items),
         # для отладки
         "filtered_ids": [item.id for item in filtered_items],
-        "dropped_ids": [item.id for item in dropped_items],
+        "dropped_ids": [record["item"].id for record in dropped_items],
     }
 
     log_service.add_log(
@@ -67,7 +73,10 @@ def filter_news_task(previous_result: dict | None = None) -> dict:
             )
         )
 
-    for item in dropped_items:
+    for record in dropped_items:
+        item = record["item"]
+        reason = record["reason"]
+
         log_service.add_log(
             LogItem(
                 level=LogLevel.INFO,
@@ -77,6 +86,7 @@ def filter_news_task(previous_result: dict | None = None) -> dict:
                     "news_id": item.id,
                     "source": item.source,
                     "status": getattr(item.status, "value", str(item.status)),
+                    "reason": reason,
                 },
             )
         )

@@ -119,8 +119,18 @@ class FilterService:
         Подготовка item перед запуском правил.
         Content_hash считаем один раз в начале.
         """
-        content_hash = generate_content_hash(item)
-        return item.model_copy(update={"content_hash": content_hash})
+        # защита от пустых значений
+        safe_item = item.model_copy(
+            update={
+                "title": item.title or "",
+                "summary": item.summary or "",
+                "raw_text": item.raw_text or "",
+            }
+        )
+
+        content_hash = generate_content_hash(safe_item)
+
+        return safe_item.model_copy(update={"content_hash": content_hash})
 
     def _get_failed_reason(
             self,

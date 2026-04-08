@@ -28,10 +28,12 @@ class FilterService:
             self,
             keyword_service: KeywordService,
             log_service,
+            news_service,
             source_service=None,
     ) -> None:
         self.keyword_service = keyword_service
         self.log_service = log_service
+        self.news_service = news_service
         self.source_service = source_service
 
         # Порядок применения правил:
@@ -42,7 +44,7 @@ class FilterService:
         self.rules = [
             SourceFilter(),
             LanguageFilter(),
-            DedupFilter(),
+            DedupFilter(self.news_service),
             KeywordFilter(),
         ]
 
@@ -98,8 +100,6 @@ class FilterService:
                 )
                 self._log_drop(dropped_item, failed_reason)
 
-                # Сохраняем item  и reason,
-                # чтобы tasks/filter.py мог показать причину отклонения.
                 dropped_items.append(
                     {
                         "item": dropped_item,
@@ -119,7 +119,6 @@ class FilterService:
         Подготовка item перед запуском правил.
         Content_hash считаем один раз в начале.
         """
-        # защита от пустых значений
         safe_item = item.model_copy(
             update={
                 "title": item.title or "",

@@ -17,7 +17,6 @@ from app.services import (
     PublishService,
     SourceService,
 )
-
 from app.services.generation_service import build_post_generator
 from app.storage import (
     get_keyword_storage,
@@ -50,12 +49,6 @@ class Container:
             available_source_items_provider=available_source_items,
         )
 
-        self.filter_service = FilterService(
-            keyword_service=self.keyword_service,
-            log_service=self.log_service,
-            source_service=self.source_service,
-        )
-
         self.news_service = NewsService(
             storage=self.news_storage,
             source_service=self.source_service,
@@ -64,13 +57,19 @@ class Container:
             log_service=self.log_service,
         )
 
+        self.filter_service = FilterService(
+            keyword_service=self.keyword_service,
+            log_service=self.log_service,
+            news_service=self.news_service,
+            source_service=self.source_service,
+        )
+
         self.post_service = PostService(storage=self.post_storage)
 
         self.generation_service = GenerationService(
             news_storage=self.news_storage,
             post_storage=self.post_storage,
             log_service=self.log_service,
-            # Передаём новую фабрику из app.services.generation_service
             generator_factory=build_post_generator,
         )
 

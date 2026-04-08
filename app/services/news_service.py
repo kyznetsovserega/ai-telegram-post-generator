@@ -102,3 +102,25 @@ class NewsService:
 
     def update_items(self, items: list[NewsItem]) -> None:
         self.storage.write_all(items)
+
+    def exists_duplicate_content_hash(
+            self,
+            content_hash: str,
+            exclude_news_id: str | None = None,
+    ) -> bool:
+        """
+        Проверяет, есть ли ДРУГАЯ новость с таким же content_hash.
+        """
+        if not content_hash:
+            return False
+
+        for item in self.storage.list_all():
+            if item.content_hash != content_hash:
+                continue
+
+            if exclude_news_id is not None and item.id == exclude_news_id:
+                continue
+
+            return True
+
+        return False

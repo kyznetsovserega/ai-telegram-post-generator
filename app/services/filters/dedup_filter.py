@@ -2,21 +2,21 @@ from __future__ import annotations
 
 from app.models import NewsItem
 from app.services.filters.base import FilterContext, FilterResult, FilterRule
-from app.storage.news import RedisNewsStorage
 
 
 class DedupFilter(FilterRule):
     """
     Дедупликация:
-    1) In-memory (в рамках одного запуска)
-    2) Storage-level (Redis)
+    1) in-memory (в рамках одного запуска filter stage)
+    2) storage-level (через NewsService)
 
-    - добавлена проверка Redis (storage-level dedup)
+    - убрана прямая зависимость от RedisNewsStorage
+    - фильтр больше не знает о Redis-ключах
+    - storage-level dedup идёт через NewsService
     """
 
-    def __init__(self) -> None:
-        # подключаем storage
-        self.storage = RedisNewsStorage()
+    def __init__(self, news_service) -> None:
+        self.news_service = news_service
 
     def apply(self, item: NewsItem, context: FilterContext) -> FilterResult:
         # 1. In-memory dedup
@@ -27,12 +27,13 @@ class DedupFilter(FilterRule):
             return FilterResult.reject("duplicate_content")
 
         # 2. Storage-level dedup
-        if item.content_hash:
-            hash_key = self.storage._hash_key(item.content_hash)  # используем ту же логику ключей
-            if self.storage.redis.exists(hash_key):
-                return FilterResult.reject("duplicate_content_storage")
+        if item.content_hash and self.news_service.exists_duplicate_content_hash(
+                content_hash=item.content_hash,
+                exclude_news_id=item.id,
+        ):
+            return FilterResult.reject("duplicate_content_storage")
 
-        # сохраняем в контекст
+        # сохраняем item в текущий batch-context
         context.seen_ids.add(item.id)
 
         if item.content_hash:

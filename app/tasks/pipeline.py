@@ -8,14 +8,18 @@ from app.models import LogItem, LogLevel
 from app.tasks.collect import collect_sites_task
 from app.tasks.filter import filter_news_task
 from app.tasks.generate import generate_posts_task
-from app.tasks.publish import publish_posts_task
+from app.tasks.publish import schedule_publish_posts_task
 
 
 @celery_app.task(name="app.tasks.pipeline_chain_task")
 def pipeline_chain_task() -> str:
     """
     Orchestration через Celery chain:
-    collect -> filter -> generate -> publish
+    collect -> filter -> generate -> schedule_publish
+
+    - pipeline не публикует посты сразу пачкой
+    - последний шаг только планирует отложенные publish-задачи
+    - сами публикации идут отдельно, по одной, с countdown
     """
     container = get_container()
     log_service = container.log_service
@@ -24,7 +28,7 @@ def pipeline_chain_task() -> str:
         collect_sites_task.s(),
         filter_news_task.s(),
         generate_posts_task.s(),
-        publish_posts_task.s(),
+        schedule_publish_posts_task.s(),
     )
     result = workflow.apply_async()
 
@@ -51,11 +55,13 @@ def collect_filter_generate_posts_task() -> dict:
     collect_result = collect_sites_task()
     filter_result = filter_news_task()
     generate_result = generate_posts_task()
+    publish_result = schedule_publish_posts_task()
 
     result = {
         "collect": collect_result,
         "filter": filter_result,
         "generate": generate_result,
+        "publish_schedule": publish_result,
     }
 
     log_service.add_log(

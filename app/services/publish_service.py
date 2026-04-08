@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import time
+
+from app.config import PUBLISH_DELAY_SECONDS
 from app.models import LogItem, LogLevel, PostStatus, utc_now
 from app.services.log_service import LogService
 
@@ -12,7 +15,8 @@ class PublishService:
     - публикацию только GENERATED постов;
     - обновление статусов (PUBLISHED / FAILED);
     - сбор статистики;
-    - логирование.
+    - логирование;
+    - throttling публикаций (delay между постами).
     """
 
     def __init__(
@@ -60,7 +64,7 @@ class PublishService:
         failed_ids: list[str] = []
         errors: list[dict[str, str]] = []
 
-        for post in publishable_posts:
+        for index, post in enumerate(publishable_posts):
             if (
                     post.status == PostStatus.PUBLISHED
                     or post.external_message_id is not None
@@ -79,7 +83,6 @@ class PublishService:
                         }
                     )
 
-                    # точечно обновляем только этот пост
                     self.post_storage.update(updated_post)
                     published_ids.append(post.id)
 
@@ -100,7 +103,6 @@ class PublishService:
                         update={"status": PostStatus.FAILED}
                     )
 
-                    # точечно обновляем только этот пост
                     self.post_storage.update(failed_post)
                     failed_ids.append(post.id)
                     errors.append(
@@ -128,7 +130,6 @@ class PublishService:
                     update={"status": PostStatus.FAILED}
                 )
 
-                # при exception фиксируем failed точечно
                 self.post_storage.update(failed_post)
                 failed_ids.append(post.id)
                 errors.append(
@@ -151,6 +152,10 @@ class PublishService:
                         },
                     )
                 )
+
+            # throttling
+            if PUBLISH_DELAY_SECONDS > 0 and index < len(publishable_posts) - 1:
+                time.sleep(PUBLISH_DELAY_SECONDS)
 
         return {
             "total": total_posts,

@@ -82,15 +82,23 @@ Pipeline построен на основе статусов сущностей 
    На этом этапе новость получает статус: `new`
 
 3. Filter
-   NewsItem проходит цепочку фильтров:
-   - source filter
-   - language filter
-   - dedup filter
-   - keyword filter
 
-   Результат:
-   - если новость релевантна → статус `filtered`
-   - если отклонена → статус `dropped`
+Фильтрация включает:
+- проверку по include/exclude keywords
+- проверку по enabled sources
+- дедупликацию:
+  - in-memory в рамках текущего batch
+  - storage-level через Redis content_hash
+
+NewsItem проходит цепочку фильтров:
+- source filter
+- language filter
+- dedup filter
+- keyword filter
+
+Результат:
+- если новость релевантна → статус `filtered`
+- если отклонена → статус `dropped`
 
 4. Generate
    Для новостей со статусом filtered вызывается LLM.
@@ -210,6 +218,16 @@ LLM_PROVIDER=free_llm
 - нормализация и валидация текста;
 - ручное тестирование генерации через API.
 
+## Throttling публикации
+
+Реализован throttling публикаций для соблюдения rate limits Telegram:
+
+```env
+PUBLISH_INTERVAL_SECONDS=30
+```
+
+- применяется на уровне publish stage
+- предотвращает массовую отправку сообщений
 ---
 
 ## Публикация в Telegram
@@ -466,6 +484,8 @@ REDIS_LOG_ITEM_TTL_SECONDS=1209600
 REDIS_CLEANUP_SCHEDULE_HOUR_UTC=3
 REDIS_CLEANUP_SCHEDULE_MINUTE_UTC=0
 
+# Pipeline
+PUBLISH_DELAY_SECONDS=90
 ```
 
 ---

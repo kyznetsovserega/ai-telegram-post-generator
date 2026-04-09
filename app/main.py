@@ -122,7 +122,11 @@ Background: Celery + Redis
         )
 
     app.include_router(api_router, prefix="/api")
-    app.openapi = lambda: custom_openapi(app)
+
+    def custom_openapi_wrapper() -> dict:
+        return custom_openapi(app)
+
+    app.openapi = custom_openapi_wrapper
 
     return app
 

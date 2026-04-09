@@ -96,7 +96,6 @@ class PostGenerator:
 
                 return text
 
-
             except (AiTemporaryUnavailableError, AiRateLimitError) as exc:
                 last_temporary_error = exc
 
@@ -118,7 +117,8 @@ class PostGenerator:
             if attempt == self._MAX_ATTEMPTS:
                 break
 
-            await asyncio.sleep(self._RETRY_DELAY_SECONDS * attempt)
+            # rate limit / временной недоступности API.
+            await asyncio.sleep(self._get_retry_delay(attempt))
 
         if last_output_error is not None:
             raise last_output_error
@@ -127,6 +127,10 @@ class PostGenerator:
             raise last_temporary_error
 
         raise RuntimeError("Retry pipeline failed unexpectedly")
+
+    @classmethod
+    def _get_retry_delay(cls, attempt: int) -> float:
+        return cls._RETRY_DELAY_SECONDS * (2 ** (attempt - 1))
 
     @staticmethod
     def _choose_recovery_strategy(error: LLMOutputError) -> str:
@@ -155,14 +159,14 @@ class PostGenerator:
 
         return f"""
                 Исправь текст ниже.
-                
+
                 Требования:
                 - раздели склеенные слова
                 - сделай читаемый русский текст
                 - 2–4 коротких предложения
                 - один абзац
                 - не добавляй новых фактов
-                
+
                 Текст:
                 {cleaned}
                 """

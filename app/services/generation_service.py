@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from app import config
+from app.ai.errors import AiRateLimitError, AiTemporaryUnavailableError
 from app.ai.factory import build_text_generation_client
 from app.ai.generator import PostGenerator
 from app.models import LogItem, LogLevel, NewsItem, PostItem, PostStatus
@@ -138,18 +139,60 @@ class GenerationService:
 
             try:
                 post_item = await self._generate_from_news_item(item)
+
+            # Отдельно классифицируем rate limit
+            except AiRateLimitError as exc:
+                summary["failed"] += 1
+
+                self.log_service.add_log(
+                    LogItem(
+                        level=LogLevel.ERROR,
+                        message="Batch generation failed due to rate limit",
+                        source="generation_service",
+                        context={
+                            "news_id": item.id,
+                            "news_source": item.source,
+                            "reason": "rate_limit",
+                            "details": str(exc),
+                            "exception_type": type(exc).__name__,
+                        },
+                    )
+                )
+                continue
+
+            # Отдельно логируем временную недоступность провайдера
+            except AiTemporaryUnavailableError as exc:
+                summary["failed"] += 1
+
+                self.log_service.add_log(
+                    LogItem(
+                        level=LogLevel.ERROR,
+                        message="Batch generation failed because provider is temporarily unavailable",
+                        source="generation_service",
+                        context={
+                            "news_id": item.id,
+                            "news_source": item.source,
+                            "reason": "temporary_unavailable",
+                            "details": str(exc),
+                            "exception_type": type(exc).__name__,
+                        },
+                    )
+                )
+                continue
+
             except Exception as exc:
                 summary["failed"] += 1
 
                 self.log_service.add_log(
                     LogItem(
                         level=LogLevel.ERROR,
-                        message="Batch generation failed",
+                        message="Batch generation failed with unexpected error",
                         source="generation_service",
                         context={
                             "news_id": item.id,
                             "news_source": item.source,
-                            "reason": str(exc),
+                            "reason": "unexpected_error",
+                            "details": str(exc),
                             "exception_type": type(exc).__name__,
                         },
                     )

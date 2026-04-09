@@ -46,8 +46,10 @@ def pipeline_chain_task() -> str:
 @celery_app.task(name="app.tasks.collect_filter_generate_posts_task")
 def collect_filter_generate_posts_task() -> dict:
     """
+    Deprecated: используйте pipeline_chain_task.
+
     Legacy-версия pipeline без chain.
-    Оставлена для обратной совместимости и ручной отладки.
+    Оставлена только для отладки.
     """
     container = get_container()
     log_service = container.log_service

@@ -11,11 +11,23 @@ def ping() -> dict:
     return {"ok": True}
 
 
-@celery_app.task(name="app.tasks.collect_sites_task")
-def collect_sites_task(payload: dict | None = None) -> dict:
+@celery_app.task(
+    name="app.tasks.collect_sites_task",
+    bind=True,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=300,
+    retry_jitter=True,
+    max_retries=3,
+    soft_time_limit=120,
+    time_limit=150,
+)
+def collect_sites_task(self, payload: dict | None = None) -> dict:
     """
     Celery task для сбора новостей через service layer.
     """
+    _ = self  # suppress unused warning
+
     payload = payload or {}
 
     container = get_container()

@@ -6,11 +6,21 @@ from app.core.container import get_container
 from app.models import LogItem, LogLevel
 
 
-@celery_app.task(name="app.tasks.publish_single_post_task")
-def publish_single_post_task(post_id: str) -> dict:
+@celery_app.task(
+    name="app.tasks.publish_single_post_task",
+    bind=True,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=300,
+    retry_jitter=True,
+    max_retries=3,
+)
+def publish_single_post_task(self, post_id: str) -> dict:
     """
     Публикует один конкретный пост.
     """
+    _ = self  # suppress unused warning
+
     container = get_container()
     log_service = container.log_service
     publish_service = container.publish_service

@@ -21,6 +21,9 @@ class LogStorageProtocol(Protocol):
     def list_all(self) -> list[LogItem]:
         ...
 
+    def list_paginated(self, limit: int, offset: int) -> list[LogItem]:
+        ...
+
 
 class JsonlLogStorage:
     """ JSONL-хранилище для логов приложения."""
@@ -59,8 +62,17 @@ class JsonlLogStorage:
                 payload = json.loads(line)
                 result.append(LogItem.model_validate(payload))
 
+        result.sort(key=lambda item: item.created_at, reverse=True)
         return result
 
+    # пагинация для JSONL fallback
+    def list_paginated(self, limit: int, offset: int) -> list[LogItem]:
+        items = self.list_all()
+        return items[offset: offset + limit]
+
+    # count для pagination metadata
+    def count_all(self) -> int:
+        return len(self.list_all())
 
 class RedisLogStorage:
     """Redis-хранилище для логов приложения."""
@@ -87,9 +99,6 @@ class RedisLogStorage:
         pipeline.execute()
 
     def save_many(self, items: Iterable[LogItem]) -> int:
-        """
-        Пакетное сохранение логов.
-       """
         items_list = list(items)
         if not items_list:
             return 0
@@ -108,7 +117,7 @@ class RedisLogStorage:
         return len(items_list)
 
     def list_all(self) -> list[LogItem]:
-        ids = self.redis.zrange(self.IDS_KEY, 0, -1)
+        ids = self.redis.zrevrange(self.IDS_KEY, 0, -1)
         if not ids:
             return []
 
@@ -125,3 +134,27 @@ class RedisLogStorage:
             result.append(LogItem.model_validate_json(payload))
 
         return result
+
+    # пагинация по zset
+    def list_paginated(self, limit: int, offset: int) -> list[LogItem]:
+        ids = self.redis.zrevrange(self.IDS_KEY, offset, offset + limit - 1)
+        if not ids:
+            return []
+
+        pipeline = self.redis.pipeline()
+        for log_id in ids:
+            pipeline.get(self._item_key(log_id))
+
+        payloads = pipeline.execute()
+
+        result: list[LogItem] = []
+        for payload in payloads:
+            if not payload:
+                continue
+            result.append(LogItem.model_validate_json(payload))
+
+        return result
+
+    # быстрый count по zset индексу
+    def count_all(self) -> int:
+        return self.redis.zcard(self.IDS_KEY)

@@ -38,7 +38,9 @@ def generate_content_hash(item: NewsItem) -> str:
         item.raw_text or "",
     ]
     normalized = normalize_text(" ".join(parts))
-    return hashlib.md5(normalized.encode("utf-8")).hexdigest()
+
+    # SHA256
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 
 class JsonlNewsStorage:
@@ -46,7 +48,7 @@ class JsonlNewsStorage:
     HASH_FILE = Path("data/news_hashes.jsonl")
 
     def __init__(self, path: str | Path) -> None:
-        self.path = path
+        self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.HASH_FILE.parent.mkdir(parents=True, exist_ok=True)
 
@@ -140,13 +142,26 @@ class JsonlNewsStorage:
                 payload = json.loads(line)
                 result.append(NewsItem.model_validate(payload))
 
+        # новые сверху
+        result.sort(key=lambda item: item.published_at, reverse=True)
         return result
+
+    # добавлена пагинация для JSONL fallback
+    def list_paginated(self, limit: int, offset: int) -> list[NewsItem]:
+        items = self.list_all()
+        return items[offset: offset + limit]
 
     def get_by_id(self, news_id: str) -> Optional[NewsItem]:
         """ Вернуть новость по ее id. """
         for item in self.list_all():
             if item.id == news_id:
                 return item
+        return None
+
+    def get_news_id_by_content_hash(self, content_hash: str) -> str | None:
+        for item in self.list_all():
+            if item.content_hash == content_hash:
+                return item.id
         return None
 
     def write_all(self, items: Iterable[NewsItem]) -> None:
@@ -166,7 +181,29 @@ class JsonlNewsStorage:
             (item.content_hash or generate_content_hash(item) for item in items_list)
         )
 
+    # единый интерфейс для service-level dedup
+    def exists_content_hash(
+            self,
+            content_hash: str,
+            exclude_news_id: str | None = None,
+    ) -> bool:
+        if not content_hash:
+            return False
 
+        for item in self.list_all():
+            if item.content_hash != content_hash:
+                continue
+
+            if exclude_news_id is not None and item.id == exclude_news_id:
+                continue
+
+            return True
+
+        return False
+
+    # count для pagination metadata
+    def count_all(self) -> int:
+        return len(self.list_all())
 
 class RedisNewsStorage:
     """Redis-хранилище новостей + дедуп по content-hash (TTL-based)."""
@@ -174,6 +211,8 @@ class RedisNewsStorage:
     IDS_KEY = "news:ids"
     HASH_KEY_PREFIX = "news:content_hash:"
     ITEM_KEY_PREFIX = "news:item:"
+    # индекс времени публикации для pagination
+    PUBLISHED_INDEX_KEY = "news:published_at"
 
     def __init__(self) -> None:
         self.redis = get_redis_client()
@@ -200,7 +239,8 @@ class RedisNewsStorage:
             content_hash = item.content_hash or generate_content_hash(item)
 
             if self.redis.exists(self._hash_key(content_hash)):
-                logger.info("News not saved (duplicate content)",
+                logger.info(
+                    "News not saved (duplicate content)",
                     extra={
                         "news_id": item.id,
                         "content_hash": content_hash,
@@ -218,10 +258,18 @@ class RedisNewsStorage:
                 ex=REDIS_NEWS_ITEM_TTL_SECONDS,
             )
             pipeline.sadd(self.IDS_KEY, normalized_item.id)
+
+            # hash-ключе храним news_id
             pipeline.set(
                 self._hash_key(content_hash),
-                "1",
+                normalized_item.id,
                 ex=REDIS_NEWS_CONTENT_HASH_TTL_SECONDS,
+            )
+
+            # индекс для pagination / сортировки
+            pipeline.zadd(
+                self.PUBLISHED_INDEX_KEY,
+                {normalized_item.id: normalized_item.published_at.timestamp()},
             )
 
             pipeline.execute()
@@ -230,7 +278,32 @@ class RedisNewsStorage:
         return count
 
     def list_all(self) -> list[NewsItem]:
-        ids = sorted(self.redis.smembers(self.IDS_KEY))
+        # читаем через zset индекс, новые сверху
+        ids = self.redis.zrevrange(self.PUBLISHED_INDEX_KEY, 0, -1)
+        if not ids:
+            return []
+
+        pipeline = self.redis.pipeline()
+        for news_id in ids:
+            pipeline.get(self._item_key(news_id))
+
+        payloads = pipeline.execute()
+
+        result: list[NewsItem] = []
+        for payload in payloads:
+            if not payload:
+                continue
+            result.append(NewsItem.model_validate_json(payload))
+
+        return result
+
+    # добавлена пагинация
+    def list_paginated(self, limit: int, offset: int) -> list[NewsItem]:
+        ids = self.redis.zrevrange(
+            self.PUBLISHED_INDEX_KEY,
+            offset,
+            offset + limit - 1,
+        )
         if not ids:
             return []
 
@@ -255,6 +328,11 @@ class RedisNewsStorage:
 
         return NewsItem.model_validate_json(payload)
 
+    def get_news_id_by_content_hash(self, content_hash: str) -> str | None:
+        if not content_hash:
+            return None
+        return self.redis.get(self._hash_key(content_hash))
+
     def write_all(self, items: Iterable[NewsItem]) -> None:
         """
         Полностью пересобирает Redis-хранилище новостей.
@@ -264,10 +342,18 @@ class RedisNewsStorage:
 
         pipeline = self.redis.pipeline()
 
+        # удаляем старые item-ключи, hash-индексы и zset-индекс
         for news_id in existing_ids:
+            payload = self.redis.get(self._item_key(news_id))
+            if payload:
+                existing_item = NewsItem.model_validate_json(payload)
+                if existing_item.content_hash:
+                    pipeline.delete(self._hash_key(existing_item.content_hash))
+
             pipeline.delete(self._item_key(news_id))
 
         pipeline.delete(self.IDS_KEY)
+        pipeline.delete(self.PUBLISHED_INDEX_KEY)
 
         for item in items_list:
             content_hash = item.content_hash or generate_content_hash(item)
@@ -276,13 +362,43 @@ class RedisNewsStorage:
             pipeline.set(
                 self._item_key(normalized_item.id),
                 normalized_item.model_dump_json(),
-                ex=REDIS_NEWS_ITEM_TTL_SECONDS,  # CHANGED
+                ex=REDIS_NEWS_ITEM_TTL_SECONDS,
             )
             pipeline.sadd(self.IDS_KEY, normalized_item.id)
+
+            # храним news_id в hash-индексе
             pipeline.set(
                 self._hash_key(content_hash),
-                "1",
-                ex=REDIS_NEWS_CONTENT_HASH_TTL_SECONDS,  # CHANGED
+                normalized_item.id,
+                ex=REDIS_NEWS_CONTENT_HASH_TTL_SECONDS,
+            )
+
+            # восстанавливаем zset индекс публикации
+            pipeline.zadd(
+                self.PUBLISHED_INDEX_KEY,
+                {normalized_item.id: normalized_item.published_at.timestamp()},
             )
 
         pipeline.execute()
+
+    # единый интерфейс для service-level dedup
+    def exists_content_hash(
+            self,
+            content_hash: str,
+            exclude_news_id: str | None = None,
+    ) -> bool:
+        if not content_hash:
+            return False
+
+        news_id = self.redis.get(self._hash_key(content_hash))
+        if not news_id:
+            return False
+
+        if exclude_news_id is not None and news_id == exclude_news_id:
+            return False
+
+        return self.redis.exists(self._item_key(news_id)) == 1
+
+    # быстрый count по индексу ids
+    def count_all(self) -> int:
+        return self.redis.scard(self.IDS_KEY)

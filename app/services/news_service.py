@@ -93,6 +93,21 @@ class NewsService:
     def list_all(self) -> list[NewsItem]:
         return self.storage.list_all()
 
+    # добавили пагинацию на уровне service
+    def list_paginated(self, limit: int, offset: int) -> list[NewsItem]:
+        if hasattr(self.storage, "list_paginated"):
+            return self.storage.list_paginated(limit=limit, offset=offset)
+
+        items = self.storage.list_all()
+        return items[offset: offset + limit]
+
+    # добавили total-count для API pagination.
+    def count_all(self) -> int:
+        if hasattr(self.storage, "count_all"):
+            return self.storage.count_all()
+
+        return len(self.storage.list_all())
+
     def list_by_status(self, statuses: set[NewsStatus]) -> list[NewsItem]:
         return [
             item
@@ -113,6 +128,12 @@ class NewsService:
         """
         if not content_hash:
             return False
+
+        if hasattr(self.storage, "exists_content_hash"):
+            return self.storage.exists_content_hash(
+                content_hash=content_hash,
+                exclude_news_id=exclude_news_id,
+            )
 
         for item in self.storage.list_all():
             if item.content_hash != content_hash:

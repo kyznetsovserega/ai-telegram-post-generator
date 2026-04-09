@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from app.api.dependencies.services import get_news_service
 from app.api.errors import get_default_responses
@@ -21,9 +21,21 @@ router = APIRouter()
     },
 )
 async def list_news(
+        limit: int = Query(
+            default=50,
+            ge=1,
+            le=1000,
+            description="Maximum number of news items to return",
+        ),
+        offset: int = Query(
+            default=0,
+            ge=0,
+            description="Number of news items to skip",
+        ),
         service: NewsService = Depends(get_news_service),
 ) -> NewsListResponse:
-    items = service.list_all()
+    items = service.list_paginated(limit=limit, offset=offset)
+    total = service.count_all()
 
     response_items = [
         NewsItemResponse(
@@ -40,5 +52,5 @@ async def list_news(
 
     return NewsListResponse(
         items=response_items,
-        total=len(response_items),
+        total=total,
     )

@@ -58,18 +58,24 @@ async def list_logs(
         default=None,
         description="Filter logs by source",
     ),
-    limit: int | None = Query(
-        default=None,
+        limit: int = Query(
+            default=50,
         ge=1,
         le=1000,
         description="Maximum number of log records to return",
     ),
+        offset: int = Query(
+            default=0,
+            ge=0,
+            description="Number of log records to skip",
+        ),
     service: LogService = Depends(get_log_service),
 ) -> LogListResponse:
-    logs = service.list_filtered(
+    logs, total = service.list_filtered(
         level=level.value if level is not None else None,
         source=source,
         limit=limit,
+        offset=offset,
     )
 
     items = [
@@ -84,4 +90,4 @@ async def list_logs(
         for log in logs
     ]
 
-    return LogListResponse(items=items, total=len(items))
+    return LogListResponse(items=items, total=total)

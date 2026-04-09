@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from app.api.dependencies.services import get_post_service
 from app.api.errors import get_default_responses
@@ -14,16 +14,28 @@ router = APIRouter()
     "/posts",
     response_model=PostHistoryListResponse,
     summary="List generated posts",
-    description="Returns all generated posts with their publication status.",
+    description="Returns generated posts with their publication status.",
     responses={
         200: {"description": "Posts retrieved successfully"},
         **get_default_responses(),
     },
 )
 async def list_generated_posts(
+        limit: int = Query(
+            default=50,
+            ge=1,
+            le=1000,
+            description="Maximum number of posts to return",
+        ),
+        offset: int = Query(
+            default=0,
+            ge=0,
+            description="Number of posts to skip",
+        ),
         service: PostService = Depends(get_post_service),
 ) -> PostHistoryListResponse:
-    posts = service.list_all()
+    posts = service.list_paginated(limit=limit, offset=offset)
+    total = service.count_all()
 
     items = [
         PostHistoryItemResponse(
@@ -40,4 +52,4 @@ async def list_generated_posts(
         for post in posts
     ]
 
-    return PostHistoryListResponse(items=items, total=len(items))
+    return PostHistoryListResponse(items=items, total=total)

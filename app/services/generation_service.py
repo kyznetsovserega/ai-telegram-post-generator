@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 from datetime import datetime, timezone
 from uuid import uuid4
@@ -31,6 +32,11 @@ class GenerationService:
     - batch-генерацию;
     - логирование.
     """
+
+    # ограничиваем размер batch, чтобы не разгонять очередь запросов к free_llm
+    _MAX_BATCH_SIZE = 3
+
+    _DELAY_BETWEEN_ITEMS_SECONDS = 41.0
 
     def __init__(
             self,
@@ -107,18 +113,26 @@ class GenerationService:
 
         Правила:
         - уже есть пост → skipped
-        - ошибка → failed
+        - rate limit / временная недоступность → skipped
+        - unexpected error → failed
         - дедуп текста → skipped
         - новый пост → generated
         """
+        # ограничиваем batch для более устойчивой работы free tier
+        batch_items = items[: self._MAX_BATCH_SIZE]
+
         summary = {
-            "total": len(items),
+            "total": len(batch_items),
             "generated": 0,
             "skipped": 0,
             "failed": 0,
         }
 
-        for item in items:
+        for index, item in enumerate(batch_items):
+            # обязательная пауза между запросами к free tier
+            if index > 0:
+                await asyncio.sleep(self._DELAY_BETWEEN_ITEMS_SECONDS)
+
             existing_post = self.post_storage.get_by_news_id(item.id)
             if existing_post is not None:
                 summary["skipped"] += 1
@@ -140,9 +154,9 @@ class GenerationService:
             try:
                 post_item = await self._generate_from_news_item(item)
 
-            # Отдельно классифицируем rate limit
             except AiRateLimitError as exc:
-                summary["failed"] += 1
+                # rate limit — это внешний лимит провайдера, не системный сбой проекта
+                summary["skipped"] += 1
 
                 self.log_service.add_log(
                     LogItem(
@@ -160,9 +174,9 @@ class GenerationService:
                 )
                 continue
 
-            # Отдельно логируем временную недоступность провайдера
             except AiTemporaryUnavailableError as exc:
-                summary["failed"] += 1
+                # временная внешняя недоступность — тоже skipped
+                summary["skipped"] += 1
 
                 self.log_service.add_log(
                     LogItem(

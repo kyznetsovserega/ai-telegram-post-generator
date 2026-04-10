@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.models import KeywordType, LogLevel, PostStatus, SourceType
+from app.models import KeywordType, LogLevel, NewsStatus, PostStatus, SourceType
 
 
 # --- Error ---
@@ -614,8 +614,8 @@ class NewsItemResponse(BaseModel):
         description="Source identifier",
         examples=["habr"],
     )
-    status: str = Field(
-        description="Current processing status",
+    status: NewsStatus = Field(
+        description="Current news processing status",
         examples=["filtered"],
     )
     published_at: datetime = Field(

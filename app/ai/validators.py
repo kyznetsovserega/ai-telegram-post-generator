@@ -9,7 +9,6 @@ class LLMOutputError(ValueError):
 
 def sanitize_llm_output(text: str) -> str:
     """Очистка текста от мусора LLM."""
-
     text = text.strip()
 
     prefixes = [
@@ -32,7 +31,6 @@ def sanitize_llm_output(text: str) -> str:
 
 def validate_llm_output(text: str) -> None:
     """Валидация результата генерации."""
-
     if not text:
         raise LLMOutputError("LLM returned empty text")
     if len(text) < 20:
@@ -42,21 +40,18 @@ def validate_llm_output(text: str) -> None:
     if " " not in text:
         raise LLMOutputError("LLM output does not contain spaces")
 
-    max_compact_token_length = 40
+    # URL-подобных фрагментах и технических названиях.
+    max_compact_token_length = 80
 
     tokens = re.findall(r"\S+", text)
 
     for token in tokens:
-
-        # пропускаем URL
         if token.startswith("http://") or token.startswith("https://"):
             continue
 
-        # пропускаем email
         if "@" in token:
             continue
 
-        # пропускаем emoji и спецсимволы
         cleaned = re.sub(r"[^\wа-яА-ЯёЁ]", "", token)
 
         if len(cleaned) > max_compact_token_length:
